@@ -23,6 +23,11 @@ const ProtectedRoute = () => {
                 if (user.role === 'driver' && !user.isProfileComplete && location.pathname !== '/driver/complete-profile') {
                     navigate('/driver/complete-profile', { replace: true });
                 }
+
+                // Redirect admin to admin dashboard if they're trying to access other dashboards
+                if (user.role === 'admin' && !location.pathname.startsWith('/admin')) {
+                    navigate('/admin/dashboard', { replace: true });
+                }
             } catch (error) {
                 console.error('Error checking profile:', error);
                 setLoading(false);

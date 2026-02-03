@@ -262,6 +262,52 @@ export const authService = {
     },
 
     /**
+     * Request business verification (Fleet Manager only)
+     */
+    requestVerification: async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found. Please login.');
+            }
+
+            const response = await fetch(`${API_BASE_URL}/request-verification`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                }
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    /**
+     * Get verification status (Fleet Manager only)
+     */
+    getVerificationStatus: async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found. Please login.');
+            }
+
+            const response = await fetch(`${API_BASE_URL}/verification-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                }
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    /**
      * Logout user by clearing authentication data
      */
     logout: () => {

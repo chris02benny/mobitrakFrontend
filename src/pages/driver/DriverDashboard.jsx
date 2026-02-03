@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Route, Clock, Award } from 'lucide-react';
+import { Route, Clock, Award, Briefcase, Car } from 'lucide-react';
 import StatCard from '../../components/dashboard/StatCard';
 
 const DriverDashboard = () => {
@@ -53,7 +53,15 @@ const DriverDashboard = () => {
             </div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div
+                    onClick={() => navigate('/driver/jobs')}
+                    className="bg-white rounded-xl border border-gray-200 p-6 cursor-pointer hover:shadow-lg transition-shadow"
+                >
+                    <Briefcase size={32} className="text-amber-500 mb-3" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Find Jobs</h3>
+                    <p className="text-gray-600 text-sm">Browse available job listings from companies</p>
+                </div>
                 <div
                     onClick={() => navigate('/driver/trips')}
                     className="bg-white rounded-xl border border-gray-200 p-6 cursor-pointer hover:shadow-lg transition-shadow"
@@ -66,7 +74,7 @@ const DriverDashboard = () => {
                     onClick={() => navigate('/driver/vehicle')}
                     className="bg-white rounded-xl border border-gray-200 p-6 cursor-pointer hover:shadow-lg transition-shadow"
                 >
-                    <Route size={32} className="text-amber-500 mb-3" />
+                    <Car size={32} className="text-amber-500 mb-3" />
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">My Vehicle</h3>
                     <p className="text-gray-600 text-sm">Check your assigned vehicle details and status</p>
                 </div>

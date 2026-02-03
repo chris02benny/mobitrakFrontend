@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Truck, Map, Users, Wrench, BarChart2, Settings, LogOut, User, Route, Car } from 'lucide-react';
+import { LayoutDashboard, Truck, Map, Users, Wrench, BarChart2, Settings, LogOut, User, Route, Car, Briefcase, Building2, ShieldCheck, UserPlus } from 'lucide-react';
 import axios from 'axios';
 
 const Sidebar = ({ onLogout }) => {
@@ -39,18 +39,27 @@ const Sidebar = ({ onLogout }) => {
     const getMenuItems = () => {
         if (!userData) return [];
 
-        if (userData.role === 'fleetmanager') {
+        if (userData.role === 'admin') {
+            return [
+                { id: 'overview', label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/admin/dashboard' },
+                { id: 'businesses', label: 'Businesses', icon: <Building2 size={20} />, path: '/admin/businesses' },
+                { id: 'drivers', label: 'Drivers', icon: <Users size={20} />, path: '/admin/drivers' },
+                { id: 'verifications', label: 'Verifications', icon: <ShieldCheck size={20} />, path: '/admin/verifications' },
+            ];
+        } else if (userData.role === 'fleetmanager') {
             return [
                 { id: 'overview', label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/business/dashboard' },
                 { id: 'map', label: 'Live Fleet Map', icon: <Map size={20} />, path: '/business/map' },
                 { id: 'vehicles', label: 'Vehicles', icon: <Truck size={20} />, path: '/business/vehicles' },
-                { id: 'drivers', label: 'Drivers', icon: <Users size={20} />, path: '/business/drivers' },
+                { id: 'hire', label: 'Hire Drivers', icon: <UserPlus size={20} />, path: '/business/hire' },
+                { id: 'drivers', label: 'My Drivers', icon: <Users size={20} />, path: '/business/drivers' },
                 { id: 'maintenance', label: 'Maintenance', icon: <Wrench size={20} />, path: '/business/maintenance' },
                 { id: 'reports', label: 'Reports', icon: <BarChart2 size={20} />, path: '/business/reports' },
             ];
         } else if (userData.role === 'driver') {
             return [
                 { id: 'overview', label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/driver/dashboard' },
+                { id: 'jobs', label: 'Jobs', icon: <Briefcase size={20} />, path: '/driver/jobs' },
                 { id: 'trips', label: 'My Trips', icon: <Route size={20} />, path: '/driver/trips' },
                 { id: 'vehicle', label: 'My Vehicle', icon: <Car size={20} />, path: '/driver/vehicle' },
             ];
@@ -73,7 +82,19 @@ const Sidebar = ({ onLogout }) => {
 
     const getDisplayRole = () => {
         if (!userData) return '';
-        return userData.role === 'fleetmanager' ? 'Fleet Manager' : userData.role;
+        if (userData.role === 'fleetmanager') return 'Fleet Manager';
+        if (userData.role === 'admin') return 'Administrator';
+        return userData.role.charAt(0).toUpperCase() + userData.role.slice(1);
+    };
+
+    const getSettingsPath = () => {
+        if (!userData) return '/';
+        switch (userData.role) {
+            case 'admin': return '/admin/settings';
+            case 'fleetmanager': return '/business/settings';
+            case 'driver': return '/driver/settings';
+            default: return '/';
+        }
     };
 
     return (
@@ -109,21 +130,37 @@ const Sidebar = ({ onLogout }) => {
             <div className="p-6 border-t border-gray-200">
                 <div
                     className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => navigate(userData?.role === 'fleetmanager' ? '/business/settings' : '/driver/settings')}
+                    onClick={() => navigate(getSettingsPath())}
                 >
-                    {userData?.profileImage ? (
-                        <img
-                            src={userData.profileImage}
-                            alt="User"
-                            className="w-10 h-10 rounded-full object-cover"
-                        />
-                    ) : (
-                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                            <User size={20} className="text-gray-400" />
-                        </div>
-                    )}
+                    <div className="relative">
+                        {userData?.profileImage ? (
+                            <img
+                                src={userData.profileImage}
+                                alt="User"
+                                className="w-10 h-10 rounded-full object-cover"
+                            />
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                                <User size={20} className="text-gray-400" />
+                            </div>
+                        )}
+                        {/* Verified Badge for Business */}
+                        {userData?.isVerifiedBusiness && (
+                            <div 
+                                className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5"
+                                title="Mobitrak Verified Business"
+                            >
+                                <ShieldCheck size={14} className="text-blue-500" fill="currentColor" />
+                            </div>
+                        )}
+                    </div>
                     <div className="flex flex-col">
-                        <span className="text-sm font-semibold text-gray-900">{getDisplayName()}</span>
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold text-gray-900">{getDisplayName()}</span>
+                            {userData?.isVerifiedBusiness && (
+                                <ShieldCheck size={14} className="text-blue-500" fill="currentColor" />
+                            )}
+                        </div>
                         <span className="text-xs text-gray-500">{getDisplayRole()}</span>
                     </div>
                 </div>

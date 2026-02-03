@@ -24,15 +24,30 @@ const Header = ({ onLogout }) => {
     const getHeaderContent = () => {
         const path = location.pathname;
 
+        // Admin routes
+        if (path === '/admin/dashboard') {
+            return { title: 'Admin Dashboard', subtitle: 'Platform overview and statistics' };
+        } else if (path === '/admin/businesses') {
+            return { title: 'Businesses', subtitle: 'Manage fleet manager accounts' };
+        } else if (path === '/admin/drivers') {
+            return { title: 'Drivers', subtitle: 'View all driver accounts' };
+        } else if (path === '/admin/verifications') {
+            return { title: 'Verifications', subtitle: 'Process business verification requests' };
+        } else if (path === '/admin/settings') {
+            return { title: 'Settings', subtitle: 'Manage admin settings' };
+        }
+
         // Business routes
-        if (path === '/business/dashboard') {
+        else if (path === '/business/dashboard') {
             return { title: 'Dashboard', subtitle: 'Overview of your fleet status today' };
+        } else if (path === '/business/hire') {
+            return { title: 'Hire Drivers', subtitle: 'Find and hire qualified drivers for your fleet' };
         } else if (path === '/business/map') {
             return { title: 'Live Fleet Map', subtitle: 'Track your vehicles in real-time' };
         } else if (path === '/business/vehicles') {
             return { title: 'Vehicles', subtitle: 'Manage your fleet vehicles' };
         } else if (path === '/business/drivers') {
-            return { title: 'Drivers', subtitle: 'Manage your driver information' };
+            return { title: 'My Drivers', subtitle: 'Manage your hired drivers' };
         } else if (path === '/business/maintenance') {
             return { title: 'Maintenance', subtitle: 'Track vehicle maintenance schedules' };
         } else if (path === '/business/reports') {
@@ -59,7 +74,10 @@ const Header = ({ onLogout }) => {
 
     const handleProfileClick = () => {
         const userRole = localStorage.getItem('userRole');
-        const settingsPath = userRole === 'fleetmanager' ? '/business/settings' : '/driver/settings';
+        let settingsPath = '/';
+        if (userRole === 'admin') settingsPath = '/admin/settings';
+        else if (userRole === 'fleetmanager') settingsPath = '/business/settings';
+        else if (userRole === 'driver') settingsPath = '/driver/settings';
         navigate(settingsPath);
         setShowDropdown(false);
     };
@@ -72,14 +90,6 @@ const Header = ({ onLogout }) => {
             </div>
 
             <div className="flex items-center gap-6">
-                <div className="flex items-center bg-slate-100 rounded-lg px-4 py-2 w-80 gap-2.5">
-                    <Search size={18} className="text-gray-400" />
-                    <input
-                        type="text"
-                        className="bg-transparent border-none outline-none text-sm text-gray-900 w-full placeholder:text-gray-500"
-                        placeholder="Search vehicles, drivers..."
-                    />
-                </div>
                 <div className="relative cursor-pointer">
                     <Bell size={22} className="text-gray-900" />
                     <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full"></div>

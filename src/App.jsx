@@ -15,6 +15,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import BusinessDashboard from './pages/business/BusinessDashboard';
 import LiveFleetMapPage from './pages/business/LiveFleetMapPage';
 import VehicleListPage from './pages/business/VehicleListPage';
+import HireDriversPage from './pages/business/HireDriversPage';
 import DriversPage from './pages/business/DriversPage';
 import MaintenancePage from './pages/business/MaintenancePage';
 import ReportsPage from './pages/business/ReportsPage';
@@ -22,9 +23,16 @@ import BusinessSettingsPage from './pages/business/SettingsPage';
 
 // Driver Pages
 import DriverDashboard from './pages/driver/DriverDashboard';
+import JobsPage from './pages/driver/JobsPage';
 import MyTripsPage from './pages/driver/MyTripsPage';
 import MyVehiclePage from './pages/driver/MyVehiclePage';
 import DriverSettingsPage from './pages/driver/SettingsPage';
+
+// Admin Pages
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminBusinessesPage from './pages/admin/BusinessesPage';
+import AdminDriversPage from './pages/admin/DriversPage';
+import AdminVerificationsPage from './pages/admin/VerificationsPage';
 
 function App() {
   return (
@@ -41,10 +49,18 @@ function App() {
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
+            {/* Admin Routes */}
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/businesses" element={<AdminBusinessesPage />} />
+            <Route path="/admin/drivers" element={<AdminDriversPage />} />
+            <Route path="/admin/verifications" element={<AdminVerificationsPage />} />
+            <Route path="/admin/settings" element={<BusinessSettingsPage />} />
+
             {/* Business (Fleet Manager) Routes */}
             <Route path="/business/dashboard" element={<BusinessDashboard />} />
             <Route path="/business/map" element={<LiveFleetMapPage />} />
             <Route path="/business/vehicles" element={<VehicleListPage />} />
+            <Route path="/business/hire" element={<HireDriversPage />} />
             <Route path="/business/drivers" element={<DriversPage />} />
             <Route path="/business/maintenance" element={<MaintenancePage />} />
             <Route path="/business/reports" element={<ReportsPage />} />
@@ -52,6 +68,7 @@ function App() {
 
             {/* Driver Routes */}
             <Route path="/driver/dashboard" element={<DriverDashboard />} />
+            <Route path="/driver/jobs" element={<JobsPage />} />
             <Route path="/driver/trips" element={<MyTripsPage />} />
             <Route path="/driver/vehicle" element={<MyVehiclePage />} />
             <Route path="/driver/settings" element={<DriverSettingsPage />} />

@@ -21,7 +21,9 @@ const Login = () => {
             const data = await authService.login({ email, password });
             const role = data.user?.role || data.role;
 
-            if (role === 'fleetmanager') {
+            if (role === 'admin') {
+                navigate('/admin/dashboard');
+            } else if (role === 'fleetmanager') {
                 navigate('/business/dashboard');
             } else if (role === 'driver') {
                 navigate('/driver/dashboard');

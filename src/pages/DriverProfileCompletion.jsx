@@ -2,14 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 import toast from 'react-hot-toast';
-import { Upload, Loader2, Check, AlertTriangle, FileText, Eye, X, User, Camera } from 'lucide-react';
+import { Upload, Loader2, Check, AlertTriangle, FileText, Eye, X } from 'lucide-react';
 import Button from '../components/common/Button';
 
 const DriverProfileCompletion = () => {
     const navigate = useNavigate();
-    const [profilePicFile, setProfilePicFile] = useState(null);
-    const [profilePicPreview, setProfilePicPreview] = useState(null);
-    const [uploadingProfile, setUploadingProfile] = useState(false);
     const [dlFrontFile, setDlFrontFile] = useState(null);
     const [dlBackFile, setDlBackFile] = useState(null);
     const [dlFrontPreview, setDlFrontPreview] = useState(null);
@@ -17,39 +14,6 @@ const DriverProfileCompletion = () => {
     const [uploading, setUploading] = useState(false);
     const [extractedDetails, setExtractedDetails] = useState(null);
     const [showDisclaimer, setShowDisclaimer] = useState(false);
-
-    const handleProfilePicChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            if (!file.type.startsWith('image/')) {
-                toast.error('Please upload an image file');
-                return;
-            }
-            setProfilePicFile(file);
-            setProfilePicPreview(URL.createObjectURL(file));
-        }
-    };
-
-    const handleUploadProfilePic = async () => {
-        if (!profilePicFile) {
-            toast.error('Please select a profile picture');
-            return;
-        }
-
-        setUploadingProfile(true);
-
-        try {
-            const result = await authService.uploadProfileImage(profilePicFile);
-            toast.success('Profile picture uploaded successfully!');
-            
-            // Dispatch event to update sidebar
-            window.dispatchEvent(new Event('profileUpdated'));
-        } catch (error) {
-            toast.error(error.message || 'Failed to upload profile picture');
-        } finally {
-            setUploadingProfile(false);
-        }
-    };
 
     const handleFrontFileChange = (e) => {
         const file = e.target.files[0];
@@ -127,70 +91,9 @@ const DriverProfileCompletion = () => {
                 </div>
 
                 <form onSubmit={handleVerifyAndSave} className="space-y-6">
-                    {/* Profile Picture Section */}
-                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-lg border border-amber-200">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Step 1: Upload Profile Picture</h2>
-                        
-                        <div className="flex flex-col md:flex-row items-center gap-6">
-                            <div className="relative group">
-                                {profilePicPreview ? (
-                                    <img
-                                        src={profilePicPreview}
-                                        alt="Profile"
-                                        className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
-                                    />
-                                ) : (
-                                    <div className="w-32 h-32 rounded-full bg-white border-4 border-white shadow-lg flex items-center justify-center">
-                                        <User size={48} className="text-gray-400" />
-                                    </div>
-                                )}
-
-                                <label className="absolute bottom-0 right-0 p-2.5 bg-amber-500 rounded-full text-white cursor-pointer hover:bg-amber-600 transition-colors shadow-lg border-4 border-white">
-                                    <Camera size={20} />
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleProfilePicChange}
-                                        className="hidden"
-                                        disabled={uploadingProfile}
-                                    />
-                                </label>
-
-                                {uploadingProfile && (
-                                    <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
-                                        <Loader2 className="w-8 h-8 animate-spin text-white" />
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex-1 text-center md:text-left">
-                                <h3 className="text-base font-semibold text-gray-900 mb-1">Profile Photo</h3>
-                                <p className="text-sm text-gray-600 mb-3">JPG, PNG or GIF (Max 5MB)</p>
-                                {profilePicFile && (
-                                    <Button
-                                        type="button"
-                                        onClick={handleUploadProfilePic}
-                                        variant="primary"
-                                        size="sm"
-                                        disabled={uploadingProfile}
-                                    >
-                                        {uploadingProfile ? (
-                                            <>
-                                                <Loader2 size={16} className="animate-spin mr-2" />
-                                                Uploading...
-                                            </>
-                                        ) : (
-                                            'Upload Photo'
-                                        )}
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Upload Section */}
                     <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Step 2: Upload DL Images</h2>
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Step 1: Upload DL Images</h2>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             {/* Front Image Upload */}
@@ -300,7 +203,7 @@ const DriverProfileCompletion = () => {
                     {/* Verification Section */}
                     {extractedDetails && (
                         <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Step 3: Verify Extracted Details</h2>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Step 2: Verify Extracted Details</h2>
 
                             <div className="p-3 bg-blue-100 border border-blue-300 rounded-lg flex items-start gap-2 mb-4">
                                 <AlertTriangle size={18} className="text-blue-700 flex-shrink-0 mt-0.5" />

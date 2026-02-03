@@ -1,7 +1,9 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { User, Building2, Mail, MapPin, Upload, Loader2, Camera, Edit2, X, FileText } from 'lucide-react';
+import { User, Building2, Mail, MapPin, Upload, Loader2, Camera, Edit2, X, FileText, ShieldCheck, Clock, CheckCircle, XCircle } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { authService } from '../../services/authService';
+import VerifiedBadge, { VerificationStatusBadge } from '../common/VerifiedBadge';
 
 const LocationPicker = lazy(() => import('./LocationPicker'));
 
@@ -13,6 +15,7 @@ const ProfileSettings = () => {
     const [showLocationModal, setShowLocationModal] = useState(false);
     const [tempLocation, setTempLocation] = useState(null);
     const [imageModal, setImageModal] = useState({ isOpen: false, src: '', alt: '' });
+    const [requestingVerification, setRequestingVerification] = useState(false);
 
     const [profileData, setProfileData] = useState({
         firstName: '',
@@ -28,7 +31,11 @@ const ProfileSettings = () => {
         },
         dlFrontImage: '',
         dlBackImage: '',
-        dlDetails: {}
+        dlDetails: {},
+        isVerifiedBusiness: false,
+        verificationStatus: 'none',
+        verificationRequestedAt: null,
+        verificationNotes: ''
     });
 
     useEffect(() => {
@@ -42,9 +49,6 @@ const ProfileSettings = () => {
                 headers: { 'x-auth-token': token }
             });
             console.log('Fetched user data:', response.data.user);
-            console.log('Office location from backend:', response.data.user.officeLocation);
-            console.log('DL Front Image:', response.data.user.dlFrontImage);
-            console.log('DL Back Image:', response.data.user.dlBackImage);
 
             setProfileData({
                 firstName: response.data.user.firstName || '',
@@ -56,7 +60,11 @@ const ProfileSettings = () => {
                 officeLocation: response.data.user.officeLocation || { type: 'Point', coordinates: [], address: '' },
                 dlFrontImage: response.data.user.dlFrontImage || '',
                 dlBackImage: response.data.user.dlBackImage || '',
-                dlDetails: response.data.user.dlDetails || {}
+                dlDetails: response.data.user.dlDetails || {},
+                isVerifiedBusiness: response.data.user.isVerifiedBusiness || false,
+                verificationStatus: response.data.user.verificationStatus || 'none',
+                verificationRequestedAt: response.data.user.verificationRequestedAt || null,
+                verificationNotes: response.data.user.verificationNotes || ''
             });
             setLoading(false);
         } catch (err) {
@@ -176,6 +184,25 @@ const ProfileSettings = () => {
         }
     };
 
+    const handleRequestVerification = async () => {
+        try {
+            setRequestingVerification(true);
+            const result = await authService.requestVerification();
+            toast.success(result.message || 'Verification request submitted successfully');
+            // Update local state
+            setProfileData(prev => ({
+                ...prev,
+                verificationStatus: 'pending',
+                verificationRequestedAt: new Date().toISOString()
+            }));
+        } catch (err) {
+            console.error('Error requesting verification:', err);
+            toast.error(err.message || 'Failed to submit verification request');
+        } finally {
+            setRequestingVerification(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-96">
@@ -268,6 +295,145 @@ const ProfileSettings = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Business Verification Section - Fleet Managers Only */}
+                    {profileData.role === 'fleetmanager' && (
+                        <div className="mb-5 pb-5 border-b border-gray-200">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                                    <ShieldCheck size={18} className="text-blue-500" />
+                                    Business Verification
+                                </h3>
+                                {profileData.isVerifiedBusiness && (
+                                    <VerifiedBadge size="md" showText={true} />
+                                )}
+                            </div>
+                            
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                {/* Verification Status Display */}
+                                <div className="flex items-center justify-between mb-4">
+                                    <span className="text-sm text-gray-600">Status:</span>
+                                    <VerificationStatusBadge 
+                                        status={profileData.verificationStatus} 
+                                        isVerified={profileData.isVerifiedBusiness} 
+                                    />
+                                </div>
+
+                                {/* Show different content based on verification status */}
+                                {profileData.isVerifiedBusiness ? (
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-100 rounded-full">
+                                                <CheckCircle size={24} className="text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-semibold text-blue-900">Congratulations!</h4>
+                                                <p className="text-sm text-blue-700">
+                                                    Your business is Mobitrak verified. This badge is displayed on your profile.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : profileData.verificationStatus === 'pending' ? (
+                                    <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-amber-100 rounded-full">
+                                                <Clock size={24} className="text-amber-600" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-semibold text-amber-900">Verification In Progress</h4>
+                                                <p className="text-sm text-amber-700">
+                                                    Your verification request is being reviewed by our team.
+                                                    {profileData.verificationRequestedAt && (
+                                                        <span className="block mt-1 text-xs">
+                                                            Submitted: {new Date(profileData.verificationRequestedAt).toLocaleDateString()}
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : profileData.verificationStatus === 'rejected' ? (
+                                    <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                                        <div className="flex items-start gap-3">
+                                            <div className="p-2 bg-red-100 rounded-full">
+                                                <XCircle size={24} className="text-red-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="font-semibold text-red-900">Verification Rejected</h4>
+                                                <p className="text-sm text-red-700">
+                                                    Your verification request was not approved.
+                                                    {profileData.verificationNotes && (
+                                                        <span className="block mt-1">Reason: {profileData.verificationNotes}</span>
+                                                    )}
+                                                </p>
+                                                <button
+                                                    onClick={handleRequestVerification}
+                                                    disabled={requestingVerification}
+                                                    className="mt-3 px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                                                >
+                                                    {requestingVerification ? (
+                                                        <span className="flex items-center gap-2">
+                                                            <Loader2 size={14} className="animate-spin" />
+                                                            Requesting...
+                                                        </span>
+                                                    ) : (
+                                                        'Request Again'
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <p className="text-sm text-gray-600 mb-4">
+                                            Get your business verified to receive a Mobitrak Verified badge. 
+                                            This helps build trust with drivers and other businesses on the platform.
+                                        </p>
+                                        <div className="bg-white p-3 rounded-lg border border-gray-200 mb-4">
+                                            <h4 className="font-medium text-gray-900 text-sm mb-2">Benefits of verification:</h4>
+                                            <ul className="text-sm text-gray-600 space-y-1">
+                                                <li className="flex items-center gap-2">
+                                                    <CheckCircle size={14} className="text-green-500" />
+                                                    Verification badge on your profile
+                                                </li>
+                                                <li className="flex items-center gap-2">
+                                                    <CheckCircle size={14} className="text-green-500" />
+                                                    Increased trust from drivers
+                                                </li>
+                                                <li className="flex items-center gap-2">
+                                                    <CheckCircle size={14} className="text-green-500" />
+                                                    Priority support from Mobitrak team
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <button
+                                            onClick={handleRequestVerification}
+                                            disabled={requestingVerification || !profileData.companyName}
+                                            className="w-full px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                            {requestingVerification ? (
+                                                <>
+                                                    <Loader2 size={16} className="animate-spin" />
+                                                    Submitting Request...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <ShieldCheck size={16} />
+                                                    Request Verification
+                                                </>
+                                            )}
+                                        </button>
+                                        {!profileData.companyName && (
+                                            <p className="text-xs text-amber-600 mt-2 text-center">
+                                                Please add your company name before requesting verification.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Driver Specific: RC Book & DL Preview */}
                     {profileData.role === 'driver' && (
@@ -384,17 +550,25 @@ const ProfileSettings = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                    Company Name
+                                    {profileData.role === 'driver' ? 'Employment Status' : 'Company Name'}
                                 </label>
                                 <div className="relative">
                                     <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                                     <input
                                         type="text"
                                         name="companyName"
-                                        value={profileData.companyName}
+                                        value={profileData.role === 'driver' 
+                                            ? (profileData.companyName || 'Unemployed')
+                                            : profileData.companyName
+                                        }
                                         onChange={handleInputChange}
-                                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                                        placeholder="Enter company name"
+                                        disabled={profileData.role === 'driver'}
+                                        className={`w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg ${
+                                            profileData.role === 'driver' 
+                                                ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                                                : 'focus:ring-2 focus:ring-amber-500 focus:border-transparent'
+                                        }`}
+                                        placeholder={profileData.role === 'driver' ? '' : 'Enter company name'}
                                     />
                                 </div>
                             </div>
