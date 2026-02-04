@@ -244,5 +244,21 @@ export const hiringService = {
         } catch (error) {
             throw error;
         }
+    },
+
+    /**
+     * Get all employments (hired drivers) for fleet manager
+     */
+    getEmployments: async () => {
+        try {
+            const response = await fetch('http://localhost:5003/api/employment', {
+                method: 'GET',
+                headers: getAuthHeaders()
+            });
+            return handleResponse(response);
+        } catch (error) {
+            console.error('Error fetching employments:', error);
+            throw error;
+        }
     }
 };

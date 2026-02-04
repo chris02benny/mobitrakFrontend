@@ -15,6 +15,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import BusinessDashboard from './pages/business/BusinessDashboard';
 import LiveFleetMapPage from './pages/business/LiveFleetMapPage';
 import VehicleListPage from './pages/business/VehicleListPage';
+import TripsPage from './pages/business/TripsPage';
 import HireDriversPage from './pages/business/HireDriversPage';
 import DriversPage from './pages/business/DriversPage';
 import MaintenancePage from './pages/business/MaintenancePage';
@@ -60,6 +61,7 @@ function App() {
             <Route path="/business/dashboard" element={<BusinessDashboard />} />
             <Route path="/business/map" element={<LiveFleetMapPage />} />
             <Route path="/business/vehicles" element={<VehicleListPage />} />
+            <Route path="/business/trips" element={<TripsPage />} />
             <Route path="/business/hire" element={<HireDriversPage />} />
             <Route path="/business/drivers" element={<DriversPage />} />
             <Route path="/business/maintenance" element={<MaintenancePage />} />

@@ -101,5 +101,51 @@ export const vehicleService = {
             console.error("Fetch vehicles error:", error);
             throw error;
         }
+    },
+
+    updateVehicle: async (vehicleId, formData) => {
+        const token = getAuthToken();
+        try {
+            const response = await fetch(`${API_BASE_URL}/${vehicleId}`, {
+                method: 'PUT',
+                headers: {
+                    'x-auth-token': token,
+                },
+                body: formData,
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const error = new Error(data.message || 'Failed to update vehicle');
+                error.status = response.status;
+                throw error;
+            }
+            return data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    deleteVehicle: async (vehicleId) => {
+        const token = getAuthToken();
+        try {
+            const response = await fetch(`${API_BASE_URL}/${vehicleId}`, {
+                method: 'DELETE',
+                headers: {
+                    'x-auth-token': token,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const error = new Error(data.message || 'Failed to delete vehicle');
+                error.status = response.status;
+                throw error;
+            }
+            return data;
+        } catch (error) {
+            throw error;
+        }
     }
 };
