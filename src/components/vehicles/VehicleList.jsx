@@ -3,8 +3,10 @@ import { vehicleService } from '../../services/vehicleService';
 import AddVehicle from './AddVehicle';
 import EditVehicleModal from './EditVehicleModal';
 import VehicleDetailsModal from './VehicleDetailsModal';
+import TrackingDeviceModal from './TrackingDeviceModal';
+import LiveTrackingModal from './LiveTrackingModal';
 import ConfirmationModal from '../common/ConfirmationModal';
-import { Plus, MoreVertical, Eye, Edit2, Trash2 } from 'lucide-react';
+import { Plus, MoreVertical, Eye, Edit2, Trash2, MapPin } from 'lucide-react';
 
 const VehicleList = () => {
     const [vehicles, setVehicles] = useState([]);
@@ -13,6 +15,8 @@ const VehicleList = () => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [showTrackingModal, setShowTrackingModal] = useState(false);
+    const [showLiveTrackingModal, setShowLiveTrackingModal] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
     const [openMenuId, setOpenMenuId] = useState(null);
     const [showConfirmation, setShowConfirmation] = useState(false);
@@ -62,9 +66,21 @@ const VehicleList = () => {
     };
 
     const handleDeleteClick = (vehicle) => {
+        // Requirement: Vehicle cannot be removed if assigned to a trip
+        if (vehicle.status === 'ASSIGNED') {
+            alert('This vehicle is currently assigned to an active trip and cannot be removed.');
+            setOpenMenuId(null);
+            return;
+        }
         setSelectedVehicle(vehicle);
         setConfirmationType('delete');
         setShowConfirmation(true);
+        setOpenMenuId(null);
+    };
+
+    const handleTrackingClick = (vehicle) => {
+        setSelectedVehicle(vehicle);
+        setShowTrackingModal(true);
         setOpenMenuId(null);
     };
 
@@ -190,8 +206,17 @@ const VehicleList = () => {
                                         {vehicle.makersName}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                            {vehicle.vehicleClass}
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${vehicle.vehicleType === 'goods'
+                                                ? 'bg-blue-100 text-blue-800'
+                                                : vehicle.vehicleType === 'passenger'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-gray-100 text-gray-800'
+                                            }`}>
+                                            {vehicle.vehicleType === 'goods'
+                                                ? 'Commercial'
+                                                : vehicle.vehicleType === 'passenger'
+                                                    ? 'Passenger'
+                                                    : 'N/A'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -204,23 +229,44 @@ const VehicleList = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                            Active
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${vehicle.status === 'ASSIGNED'
+                                                ? 'bg-amber-100 text-amber-800'
+                                                : vehicle.status === 'MAINTENANCE'
+                                                    ? 'bg-red-100 text-red-800'
+                                                    : 'bg-green-100 text-green-800'
+                                            }`}>
+                                            {vehicle.status || 'IDLE'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleMenu(vehicle._id, e);
-                                            }}
-                                            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500 hover:text-gray-700"
-                                        >
-                                            <MoreVertical size={18} />
-                                        </button>
-                                        
+                                        <div className="flex items-center justify-end gap-2">
+                                            {vehicle.hasLiveTracking && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedVehicle(vehicle);
+                                                        setShowLiveTrackingModal(true);
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-xs font-medium"
+                                                    title="View live tracking"
+                                                >
+                                                    <MapPin size={14} />
+                                                    Live Track
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleMenu(vehicle._id, e);
+                                                }}
+                                                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500 hover:text-gray-700"
+                                            >
+                                                <MoreVertical size={18} />
+                                            </button>
+                                        </div>
+
                                         {openMenuId === vehicle._id && (
-                                            <div 
+                                            <div
                                                 className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 w-48"
                                                 style={{
                                                     top: `${menuPosition.top}px`,
@@ -233,6 +279,13 @@ const VehicleList = () => {
                                                 >
                                                     <Eye size={16} />
                                                     View Details
+                                                </button>
+                                                <button
+                                                    onClick={() => handleTrackingClick(vehicle)}
+                                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                                >
+                                                    <MapPin size={16} />
+                                                    Tracking Device
                                                 </button>
                                                 <button
                                                     onClick={() => handleEditClick(vehicle)}
@@ -297,6 +350,29 @@ const VehicleList = () => {
                     type={confirmationType === 'edit' ? 'warning' : 'danger'}
                     confirmText={confirmationType === 'edit' ? 'Edit' : 'Delete'}
                     loading={actionLoading}
+                />
+            )}
+
+            {showTrackingModal && selectedVehicle && (
+                <TrackingDeviceModal
+                    isOpen={showTrackingModal}
+                    onClose={() => {
+                        setShowTrackingModal(false);
+                        setSelectedVehicle(null);
+                    }}
+                    vehicle={selectedVehicle}
+                    onSuccess={fetchVehicles}
+                />
+            )}
+
+            {showLiveTrackingModal && selectedVehicle && (
+                <LiveTrackingModal
+                    isOpen={showLiveTrackingModal}
+                    onClose={() => {
+                        setShowLiveTrackingModal(false);
+                        setSelectedVehicle(null);
+                    }}
+                    vehicle={selectedVehicle}
                 />
             )}
         </div>

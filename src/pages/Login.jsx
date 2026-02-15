@@ -7,12 +7,14 @@ import Button from '../components/common/Button';
 import AuthLayout from '../components/auth/AuthLayout';
 import AuthInput from '../components/auth/AuthInput';
 import AuthVisual from '../components/auth/AuthVisual';
+import ForgotPasswordModal from '../components/auth/ForgotPasswordModal';
 
 const Login = () => {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -108,9 +110,13 @@ const Login = () => {
                                     <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary" />
                                     <span className="text-sm text-slate-500">Remember this device</span>
                                 </label>
-                                <Link to="#" className="text-sm font-medium text-primary hover:text-primary/90">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsForgotPasswordOpen(true)}
+                                    className="text-sm font-medium text-primary hover:text-primary/90"
+                                >
                                     Forgot password?
-                                </Link>
+                                </button>
                             </div>
                         </div>
 
@@ -128,6 +134,16 @@ const Login = () => {
                     </p>
                 </div>
             </div>
+
+            {/* Forgot Password Modal */}
+            <ForgotPasswordModal
+                isOpen={isForgotPasswordOpen}
+                onClose={() => setIsForgotPasswordOpen(false)}
+                onSuccess={() => {
+                    setError('');
+                    // Optionally show a success message on login page
+                }}
+            />
         </div>
     );
 };

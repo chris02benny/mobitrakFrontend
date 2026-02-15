@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { Plus, Minus, Move } from 'lucide-react';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import MarkerOverlay from './MarkerOverlay';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
@@ -34,50 +35,55 @@ const MapView = ({
     const map = useRef(null);
     const markersRef = useRef({});
     const [mapLoaded, setMapLoaded] = useState(false);
+    const [selectedMarker, setSelectedMarker] = useState(null);
 
     // Create custom marker element for building (office)
-    const createBuildingMarker = (label) => {
+    const createBuildingMarker = (label, isActive = false) => {
         const el = document.createElement('div');
         el.className = 'custom-building-marker';
+        const size = isActive ? 56 : 44;
         el.style.cssText = `
             cursor: pointer;
             position: relative;
-            width: 40px;
-            height: 50px;
-            z-index: 1;
+            width: ${size}px;
+            height: ${size}px;
+            z-index: ${isActive ? 1000 : 1};
         `;
 
         el.innerHTML = `
-            <!-- Pin shape with building icon -->
-            <svg width="40" height="50" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));">
-                <!-- Pin background -->
-                <path d="M20 0C11.716 0 5 6.716 5 15c0 8.284 15 35 15 35s15-26.716 15-35c0-8.284-6.716-15-15-15z" fill="#f59e0b"/>
-                <circle cx="20" cy="15" r="12" fill="white"/>
-                
-                <!-- Building icon -->
-                <g transform="translate(11, 7)">
-                    <rect x="2" y="3" width="14" height="12" rx="0.8" fill="#f59e0b"/>
-                    <line x1="4" y1="6" x2="6" y2="6" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
-                    <line x1="4" y1="9" x2="6" y2="9" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
-                    <line x1="4" y1="12" x2="6" y2="12" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
-                    <line x1="12" y1="6" x2="14" y2="6" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
-                    <line x1="12" y1="9" x2="14" y2="9" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
-                    <line x1="12" y1="12" x2="14" y2="12" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
-                    <line x1="9" y1="3" x2="9" y2="0.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-                    <line x1="7" y1="0.5" x2="11" y2="0.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-                </g>
-            </svg>
-            ${label ? `
+            <div style="
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+            ">
+                <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="4" width="18" height="16" rx="2" stroke="white" stroke-width="2" fill="none"/>
+                    <line x1="6" y1="8" x2="8" y2="8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="6" y1="12" x2="8" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="6" y1="16" x2="8" y2="16" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="16" y1="8" x2="18" y2="8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="16" y1="12" x2="18" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="16" y1="16" x2="18" y2="16" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="12" y1="4" x2="12" y2="2" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="10" y1="2" x2="14" y2="2" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </div>
+            ${label && !isActive ? `
                 <div class="marker-label" style="
                     position: absolute;
-                    top: 52px;
+                    top: ${size + 4}px;
                     left: 50%;
                     transform: translateX(-50%);
                     background: white;
                     color: #1f2937;
                     padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 11px;
+                    border-radius: 6px;
+                    font-size: 10px;
                     font-weight: 600;
                     white-space: nowrap;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
@@ -88,65 +94,75 @@ const MapView = ({
                 </div>
             ` : ''}
         `;
-
-        // Add hover effect with z-index
-        const svg = el.querySelector('svg');
-        el.addEventListener('mouseenter', () => {
-            el.style.zIndex = '1000';
-            svg.style.transform = 'scale(1.1)';
-            svg.style.transition = 'transform 0.2s';
-        });
-        el.addEventListener('mouseleave', () => {
-            el.style.zIndex = '1';
-            svg.style.transform = 'scale(1)';
-        });
 
         return el;
     };
 
     // Create custom marker element for vehicle (truck)
-    const createVehicleMarker = (label) => {
+    const createVehicleMarker = (label, isActive = false, speed = null) => {
         const el = document.createElement('div');
         el.className = 'custom-vehicle-marker';
+        const size = isActive ? 56 : 44;
         el.style.cssText = `
             cursor: pointer;
             position: relative;
-            width: 40px;
-            height: 50px;
-            z-index: 1;
+            width: ${size}px;
+            height: ${size}px;
+            z-index: ${isActive ? 1000 : 1};
         `;
 
+        // Convert speed from m/s to km/h if available
+        const speedKmh = speed !== null && speed !== undefined ? (speed * 3.6).toFixed(1) : null;
+
         el.innerHTML = `
-            <!-- Pin shape with truck icon -->
-            <svg width="40" height="50" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));">
-                <!-- Pin background -->
-                <path d="M20 0C11.716 0 5 6.716 5 15c0 8.284 15 35 15 35s15-26.716 15-35c0-8.284-6.716-15-15-15z" fill="#3b82f6"/>
-                <circle cx="20" cy="15" r="12" fill="white"/>
-                
-                <!-- Truck icon -->
-                <g transform="translate(11, 7)">
-                    <!-- Truck body -->
-                    <rect x="1" y="6" width="11" height="6" rx="0.8" fill="#3b82f6"/>
-                    <!-- Truck cabin -->
-                    <path d="M12 6h2.5l1.5 2.5v3.5h-4V6z" fill="#3b82f6"/>
-                    <!-- Wheels -->
-                    <circle cx="4.5" cy="13" r="1.2" fill="white" stroke="#3b82f6" stroke-width="0.8"/>
-                    <circle cx="13.5" cy="13" r="1.2" fill="white" stroke="#3b82f6" stroke-width="0.8"/>
-                    <!-- Window -->
-                    <rect x="13" y="7" width="2" height="1.5" rx="0.3" fill="white"/>
-                </g>
-            </svg>
-            ${label ? `
+            <div style="
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+            ">
+                <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 8h15v8H1V8z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
+                    <path d="M16 8h4l3 3v5h-7V8z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
+                    <circle cx="5.5" cy="18.5" r="2.5" stroke="white" stroke-width="2" fill="none"/>
+                    <circle cx="18.5" cy="18.5" r="2.5" stroke="white" stroke-width="2" fill="none"/>
+                    <line x1="8" y1="16" x2="16" y2="16" stroke="white" stroke-width="2"/>
+                </svg>
+            </div>
+            ${speedKmh !== null ? `
+                <div class="marker-speed-badge" style="
+                    position: absolute;
+                    top: -8px;
+                    right: -8px;
+                    background: #10b981;
+                    color: white;
+                    padding: 2px 6px;
+                    border-radius: 8px;
+                    font-size: 10px;
+                    font-weight: 700;
+                    white-space: nowrap;
+                    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+                    border: 2px solid white;
+                    pointer-events: none;
+                ">
+                    ${speedKmh} km/h
+                </div>
+            ` : ''}
+            ${label && !isActive ? `
                 <div class="marker-label" style="
                     position: absolute;
-                    top: 52px;
+                    top: ${size + 4}px;
                     left: 50%;
                     transform: translateX(-50%);
                     background: white;
                     color: #1f2937;
                     padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 11px;
+                    border-radius: 6px;
+                    font-size: 10px;
                     font-weight: 600;
                     white-space: nowrap;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
@@ -157,60 +173,50 @@ const MapView = ({
                 </div>
             ` : ''}
         `;
-
-        // Add hover effect with z-index
-        const svg = el.querySelector('svg');
-        el.addEventListener('mouseenter', () => {
-            el.style.zIndex = '1000';
-            svg.style.transform = 'scale(1.1)';
-            svg.style.transition = 'transform 0.2s';
-        });
-        el.addEventListener('mouseleave', () => {
-            el.style.zIndex = '1';
-            svg.style.transform = 'scale(1)';
-        });
 
         return el;
     };
 
     // Create custom marker element for driver (person)
-    const createDriverMarker = (label) => {
+    const createDriverMarker = (label, isActive = false) => {
         const el = document.createElement('div');
         el.className = 'custom-driver-marker';
+        const size = isActive ? 56 : 44;
         el.style.cssText = `
             cursor: pointer;
             position: relative;
-            width: 40px;
-            height: 50px;
-            z-index: 1;
+            width: ${size}px;
+            height: ${size}px;
+            z-index: ${isActive ? 1000 : 1};
         `;
 
         el.innerHTML = `
-            <!-- Pin shape with driver icon -->
-            <svg width="40" height="50" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));">
-                <!-- Pin background -->
-                <path d="M20 0C11.716 0 5 6.716 5 15c0 8.284 15 35 15 35s15-26.716 15-35c0-8.284-6.716-15-15-15z" fill="#10b981"/>
-                <circle cx="20" cy="15" r="12" fill="white"/>
-                
-                <!-- Driver/Person icon -->
-                <g transform="translate(11, 7)">
-                    <!-- Head -->
-                    <circle cx="9" cy="5" r="2.5" fill="#10b981"/>
-                    <!-- Body -->
-                    <path d="M9 8.5c-2.5 0-4.5 1.5-4.5 3.5v2.5h9v-2.5c0-2-2-3.5-4.5-3.5z" fill="#10b981"/>
-                </g>
-            </svg>
-            ${label ? `
+            <div style="
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            ">
+                <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="8" r="4" stroke="white" stroke-width="2" fill="none"/>
+                    <path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+                </svg>
+            </div>
+            ${label && !isActive ? `
                 <div class="marker-label" style="
                     position: absolute;
-                    top: 52px;
+                    top: ${size + 4}px;
                     left: 50%;
                     transform: translateX(-50%);
                     background: white;
                     color: #1f2937;
                     padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 11px;
+                    border-radius: 6px;
+                    font-size: 10px;
                     font-weight: 600;
                     white-space: nowrap;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
@@ -222,18 +228,63 @@ const MapView = ({
             ` : ''}
         `;
 
-        // Add hover effect with z-index
-        const svg = el.querySelector('svg');
-        el.addEventListener('mouseenter', () => {
-            el.style.zIndex = '1000';
-            svg.style.transform = 'scale(1.1)';
-            svg.style.transition = 'transform 0.2s';
-        });
-        el.addEventListener('mouseleave', () => {
-            el.style.zIndex = '1';
-            svg.style.transform = 'scale(1)';
-        });
+        return el;
+    };
 
+    // Create custom marker element for trip (navigation)
+    const createTripMarker = (label, isActive = false) => {
+        const el = document.createElement('div');
+        el.className = 'custom-trip-marker';
+        const size = isActive ? 56 : 44;
+        el.style.cssText = `
+            cursor: pointer;
+            position: relative;
+            width: ${size}px;
+            height: ${size}px;
+            z-index: ${isActive ? 1000 : 2};
+
+        `;
+
+        el.innerHTML = `
+            <div style="
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 12px rgba(147, 51, 234, 0.4);
+            ">
+                <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
+                    <path d="M2 17l10 5 10-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M2 12l10 5 10-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            ${label && !isActive ? `
+                <div class="marker-label" style="
+                    position: absolute;
+                    top: ${size + 4}px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: white;
+                    color: #1f2937;
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    font-size: 10px;
+                    font-weight: 600;
+                    white-space: nowrap;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                    border: 1px solid #e5e7eb;
+                    pointer-events: none;
+                ">
+                    ${label}
+                </div>
+            ` : ''}
+        `;
+
+        const markerDiv = el.querySelector('div');
         return el;
     };
 
@@ -280,43 +331,48 @@ const MapView = ({
     useEffect(() => {
         if (!mapLoaded || !map.current) return;
 
-        // Remove old markers
+        // Remove all existing markers
         Object.values(markersRef.current).forEach(marker => marker.remove());
         markersRef.current = {};
 
-        // Add new markers
+        // Create all markers fresh (ensures position and speed updates work)
         markers.forEach(markerData => {
-            const { id, lng, lat, type, label } = markerData;
-
+            const { id, lng, lat, type, label, data } = markerData;
+            const isActive = selectedMarker && selectedMarker.id === id;
             let markerElement;
+
             if (type === 'building' || type === 'office') {
-                markerElement = createBuildingMarker(label);
+                markerElement = createBuildingMarker(label, isActive);
             } else if (type === 'vehicle') {
-                markerElement = createVehicleMarker(label);
+                const speed = data?.speed !== undefined ? data.speed : null;
+                markerElement = createVehicleMarker(label, isActive, speed);
             } else if (type === 'driver') {
-                markerElement = createDriverMarker(label);
+                markerElement = createDriverMarker(label, isActive);
+            } else if (type === 'trip') {
+                markerElement = createTripMarker(label, isActive);
             } else {
-                // Default marker
-                markerElement = createVehicleMarker(label);
+                const speed = data?.speed !== undefined ? data.speed : null;
+                markerElement = createVehicleMarker(label, isActive, speed);
             }
 
-            // Add click event listener if onMarkerClick callback is provided
-            if (onMarkerClick) {
-                markerElement.addEventListener('click', () => {
+            // Add click event listener
+            markerElement.addEventListener('click', () => {
+                setSelectedMarker(markerData);
+                if (onMarkerClick) {
                     onMarkerClick(markerData);
-                });
-            }
+                }
+            });
 
             const marker = new mapboxgl.Marker({
                 element: markerElement,
-                anchor: 'bottom' // Anchor at bottom point of pin
+                anchor: 'bottom'
             })
                 .setLngLat([lng, lat])
                 .addTo(map.current);
 
             markersRef.current[id] = marker;
         });
-    }, [markers, mapLoaded, onMarkerClick]);
+    }, [markers, mapLoaded, selectedMarker, onMarkerClick]);
 
     // Handle zoom in
     const handleZoomIn = () => {
@@ -368,6 +424,14 @@ const MapView = ({
                 ref={mapContainer}
                 className="w-full h-full"
             />
+
+            {/* Marker Overlay */}
+            {selectedMarker && (
+                <MarkerOverlay
+                    marker={selectedMarker}
+                    onClose={() => setSelectedMarker(null)}
+                />
+            )}
 
             {/* Overlay Controls */}
             {showControls && (

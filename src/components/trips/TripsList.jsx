@@ -1,21 +1,94 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Truck, Clock, IndianRupee, Eye, Edit2, Trash2, Navigation } from 'lucide-react';
 import { tripService } from '../../services/tripService';
+import { vehicleService } from '../../services/vehicleService';
+import { hiringService } from '../../services/hiringService';
+import EditTripModal from './EditTripModal';
+import ConfirmationModal from '../common/ConfirmationModal';
 import toast from 'react-hot-toast';
 
 const TripsList = ({ trips, loading, onRefresh }) => {
     const [deletingId, setDeletingId] = useState(null);
     const [selectedTrip, setSelectedTrip] = useState(null);
+    const [editingTrip, setEditingTrip] = useState(null);
+    const [enrichedTrips, setEnrichedTrips] = useState([]);
+    const [enriching, setEnriching] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [tripToDelete, setTripToDelete] = useState(null);
+
+    // Fetch vehicle and driver details for all trips
+    useEffect(() => {
+        const enrichTripsData = async () => {
+            if (!trips || trips.length === 0) {
+                setEnrichedTrips([]);
+                return;
+            }
+
+            setEnriching(true);
+            try {
+                const enrichedData = await Promise.all(
+                    trips.map(async (trip) => {
+                        const enrichedTrip = { ...trip };
+
+                        // Fetch vehicle details if vehicleId exists and is a string (ObjectId)
+                        if (trip.vehicleId && typeof trip.vehicleId === 'string') {
+                            try {
+                                const vehicleData = await vehicleService.getVehicleById(trip.vehicleId);
+                                enrichedTrip.vehicle = vehicleData;
+                            } catch (error) {
+                                console.error(`Failed to fetch vehicle ${trip.vehicleId}:`, error);
+                                enrichedTrip.vehicle = null;
+                            }
+                        } else if (trip.vehicleId && typeof trip.vehicleId === 'object') {
+                            // Already populated
+                            enrichedTrip.vehicle = trip.vehicleId;
+                        }
+
+                        // Fetch driver details if driverId exists and is a string (ObjectId)
+                        if (trip.driverId && typeof trip.driverId === 'string') {
+                            try {
+                                const driverResponse = await hiringService.getUserById(trip.driverId);
+                                // Extract user object from response
+                                enrichedTrip.driver = driverResponse.user || driverResponse;
+                            } catch (error) {
+                                console.error(`Failed to fetch driver ${trip.driverId}:`, error);
+                                enrichedTrip.driver = null;
+                            }
+                        } else if (trip.driverId && typeof trip.driverId === 'object') {
+                            // Already populated
+                            enrichedTrip.driver = trip.driverId;
+                        }
+
+                        return enrichedTrip;
+                    })
+                );
+
+                setEnrichedTrips(enrichedData);
+            } catch (error) {
+                console.error('Error enriching trips:', error);
+                setEnrichedTrips(trips);
+            } finally {
+                setEnriching(false);
+            }
+        };
+
+        enrichTripsData();
+    }, [trips]);
 
     const handleDelete = async (tripId) => {
-        if (!window.confirm('Are you sure you want to delete this trip?')) {
-            return;
-        }
+        setTripToDelete(tripId);
+        setShowDeleteModal(true);
+    };
 
-        setDeletingId(tripId);
+    const confirmDelete = async () => {
+        if (!tripToDelete) return;
+
+        setDeletingId(tripToDelete);
         try {
-            await tripService.deleteTrip(tripId);
-            toast.success('Trip deleted successfully');
+            await tripService.deleteTrip(tripToDelete);
+            toast.success('Trip deleted successfully. Vehicle and driver are now available.');
+            setShowDeleteModal(false);
+            setTripToDelete(null);
             onRefresh();
         } catch (error) {
             console.error('Delete error:', error);
@@ -23,6 +96,11 @@ const TripsList = ({ trips, loading, onRefresh }) => {
         } finally {
             setDeletingId(null);
         }
+    };
+
+    const cancelDelete = () => {
+        setShowDeleteModal(false);
+        setTripToDelete(null);
     };
 
     const getStatusColor = (status) => {
@@ -50,7 +128,7 @@ const TripsList = ({ trips, loading, onRefresh }) => {
         });
     };
 
-    if (loading) {
+    if (loading || enriching) {
         return (
             <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
@@ -58,7 +136,7 @@ const TripsList = ({ trips, loading, onRefresh }) => {
         );
     }
 
-    if (trips.length === 0) {
+    if (enrichedTrips.length === 0) {
         return (
             <div className="text-center py-12">
                 <Truck className="mx-auto text-gray-400 mb-4" size={48} />
@@ -70,7 +148,7 @@ const TripsList = ({ trips, loading, onRefresh }) => {
 
     return (
         <div className="space-y-4">
-            {trips.map((trip) => (
+            {enrichedTrips.map((trip) => (
                 <div key={trip._id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
                     <div className="p-6">
                         <div className="flex items-start justify-between mb-4">
@@ -83,14 +161,14 @@ const TripsList = ({ trips, loading, onRefresh }) => {
                                         {trip.tripType.toUpperCase()}
                                     </span>
                                 </div>
-                                {trip.vehicleId && (
+                                {trip.vehicle && (
                                     <div className="flex items-center gap-2 text-gray-700">
                                         <Truck size={18} />
                                         <span className="font-medium">
-                                            {trip.vehicleId.registrationNumber}
+                                            {trip.vehicle.registrationNumber}
                                         </span>
                                         <span className="text-gray-500 text-sm">
-                                            {trip.vehicleId.make} {trip.vehicleId.model}
+                                            {trip.vehicle.make} {trip.vehicle.model}
                                         </span>
                                     </div>
                                 )}
@@ -107,6 +185,7 @@ const TripsList = ({ trips, loading, onRefresh }) => {
                                 {trip.status === 'scheduled' && (
                                     <>
                                         <button
+                                            onClick={() => setEditingTrip(trip)}
                                             className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                                             title="Edit Trip"
                                         >
@@ -211,15 +290,15 @@ const TripsList = ({ trips, loading, onRefresh }) => {
                         </div>
 
                         {/* Driver Info */}
-                        {trip.driverId && (
+                        {trip.driver && (
                             <div className="mt-4 pt-4 border-t border-gray-200">
                                 <div className="flex items-center gap-2 text-sm text-gray-600">
                                     <span>Driver:</span>
                                     <span className="font-medium text-gray-900">
-                                        {trip.driverId.firstName} {trip.driverId.lastName}
+                                        {trip.driver.firstName} {trip.driver.lastName}
                                     </span>
                                     <span className="text-gray-400">•</span>
-                                    <span>{trip.driverId.email}</span>
+                                    <span>{trip.driver.email}</span>
                                 </div>
                             </div>
                         )}
@@ -234,6 +313,31 @@ const TripsList = ({ trips, loading, onRefresh }) => {
                     onClose={() => setSelectedTrip(null)}
                 />
             )}
+
+            {/* Edit Trip Modal */}
+            {editingTrip && (
+                <EditTripModal
+                    trip={editingTrip}
+                    onClose={() => setEditingTrip(null)}
+                    onSuccess={() => {
+                        setEditingTrip(null);
+                        onRefresh();
+                    }}
+                />
+            )}
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={showDeleteModal}
+                onClose={cancelDelete}
+                onConfirm={confirmDelete}
+                title="Delete Trip"
+                message="Are you sure you want to delete this trip? The assigned vehicle and driver will become available again."
+                type="danger"
+                confirmText="Delete Trip"
+                cancelText="Cancel"
+                loading={deletingId !== null}
+            />
         </div>
     );
 };
@@ -303,7 +407,7 @@ const TripDetailsModal = ({ trip, onClose }) => {
                         </div>
 
                         {/* Trip Statistics */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="bg-gray-50 p-4 rounded-lg">
                                 <div className="text-sm text-gray-600 mb-1">Distance</div>
                                 <div className="text-xl font-bold text-gray-900">{trip.distance.toFixed(2)} km</div>
@@ -316,26 +420,7 @@ const TripDetailsModal = ({ trip, onClose }) => {
                                 <div className="text-sm text-gray-600 mb-1">Amount</div>
                                 <div className="text-xl font-bold text-green-600">₹{trip.amount.toLocaleString()}</div>
                             </div>
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <div className="text-sm text-gray-600 mb-1">Stops</div>
-                                <div className="text-xl font-bold text-gray-900">{trip.stops?.length || 0}</div>
-                            </div>
                         </div>
-
-                        {/* Suggested Stops */}
-                        {trip.suggestedStops && trip.suggestedStops.length > 0 && (
-                            <div>
-                                <h3 className="font-medium text-gray-900 mb-3">Suggested Rest Stops</h3>
-                                <div className="space-y-2">
-                                    {trip.suggestedStops.map((stop, index) => (
-                                        <div key={index} className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
-                                            <div className="font-medium text-gray-900">{stop.name}</div>
-                                            <div className="text-sm text-gray-600">{stop.reason}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>

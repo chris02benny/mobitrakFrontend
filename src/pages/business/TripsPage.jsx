@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Calendar, MapPin, Truck, Clock, IndianRupee } from 'lucide-react';
+import { Plus, Search, Filter, ChevronDown, Check, Calendar, MapPin, Truck, Clock, IndianRupee } from 'lucide-react';
 import { tripService } from '../../services/tripService';
 import AddTripForm from '../../components/trips/AddTripForm';
 import TripsList from '../../components/trips/TripsList';
 import toast from 'react-hot-toast';
 
 const TripsPage = () => {
-    const [activeTab, setActiveTab] = useState('all'); // 'all', 'scheduled', 'in-progress', 'completed', 'add'
+    const [activeTab, setActiveTab] = useState('all'); // 'all', 'add'
     const [trips, setTrips] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedStatuses, setSelectedStatuses] = useState(['scheduled', 'in-progress', 'completed']);
+    const [showFilterDropdown, setShowFilterDropdown] = useState(false);
     const [stats, setStats] = useState({
         total: 0,
         scheduled: 0,
@@ -25,8 +28,8 @@ const TripsPage = () => {
     const fetchTrips = async () => {
         try {
             setLoading(true);
-            const filter = activeTab !== 'all' ? { status: activeTab } : {};
-            const data = await tripService.getTrips(filter);
+            // Fetch all trips and filter client-side for better search/multi-status support
+            const data = await tripService.getTrips();
             setTrips(data);
             calculateStats(data);
         } catch (error) {
@@ -54,73 +57,29 @@ const TripsPage = () => {
 
     const tabs = [
         { id: 'all', label: 'All Trips', count: stats.total },
-        { id: 'scheduled', label: 'Scheduled', count: stats.scheduled },
-        { id: 'in-progress', label: 'In Progress', count: stats.inProgress },
-        { id: 'completed', label: 'Completed', count: stats.completed },
         { id: 'add', label: 'Add Trip', icon: <Plus size={16} /> }
     ];
 
+    const toggleStatus = (status) => {
+        setSelectedStatuses(prev =>
+            prev.includes(status)
+                ? prev.filter(s => s !== status)
+                : [...prev, status]
+        );
+    };
+
+    const filteredTrips = trips.filter(trip => {
+        const matchesStatus = selectedStatuses.includes(trip.status);
+        const matchesSearch =
+            trip.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            trip.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            trip.startDestination?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            trip.endDestination?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesStatus && matchesSearch;
+    });
+
     return (
-        <div className="p-6 max-w-[1600px] mx-auto">
-            {/* Header */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">Trip Management</h1>
-                <p className="text-gray-600">Schedule and manage your fleet trips</p>
-            </div>
-
-            {/* Stats Cards */}
-            {activeTab !== 'add' && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Total Trips</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                            </div>
-                            <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-                                <Truck className="text-blue-600" size={24} />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Scheduled</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.scheduled}</p>
-                            </div>
-                            <div className="w-12 h-12 bg-yellow-50 rounded-lg flex items-center justify-center">
-                                <Calendar className="text-yellow-600" size={24} />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">In Progress</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.inProgress}</p>
-                            </div>
-                            <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
-                                <Clock className="text-green-600" size={24} />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Completed</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
-                            </div>
-                            <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center">
-                                <MapPin className="text-purple-600" size={24} />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
+        <div className="max-w-[1600px] mx-auto">
             {/* Tabs */}
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 <div className="flex border-b border-gray-200 overflow-x-auto">
@@ -159,11 +118,76 @@ const TripsPage = () => {
                     {activeTab === 'add' ? (
                         <AddTripForm onSuccess={handleTripCreated} />
                     ) : (
-                        <TripsList 
-                            trips={trips} 
-                            loading={loading} 
-                            onRefresh={fetchTrips}
-                        />
+                        <div className="space-y-6">
+                            {/* Search and Filter Bar */}
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search by customer, trip ID, or destination..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                                    />
+                                </div>
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                                        className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${showFilterDropdown ? 'bg-amber-50 border-amber-500 text-amber-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <Filter size={18} />
+                                        <span>Filter</span>
+                                        <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterDropdown ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {showFilterDropdown && (
+                                        <>
+                                            <div
+                                                className="fixed inset-0 z-10"
+                                                onClick={() => setShowFilterDropdown(false)}
+                                            ></div>
+                                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-20">
+                                                <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                                    Trip Status
+                                                </div>
+                                                {['scheduled', 'in-progress', 'completed'].map(status => (
+                                                    <label
+                                                        key={status}
+                                                        className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer transition-colors"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedStatuses.includes(status)}
+                                                            onChange={() => toggleStatus(status)}
+                                                            className="w-4 h-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                                                        />
+                                                        <span className="text-sm text-gray-700 capitalize">
+                                                            {status.replace('-', ' ')}
+                                                        </span>
+                                                    </label>
+                                                ))}
+                                                <div className="border-t border-gray-100 mt-2 pt-2 px-4">
+                                                    <button
+                                                        onClick={() => setSelectedStatuses(['scheduled', 'in-progress', 'completed'])}
+                                                        className="text-xs text-amber-600 hover:text-amber-700 font-medium"
+                                                    >
+                                                        Reset Filters
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <TripsList
+                                trips={filteredTrips}
+                                loading={loading}
+                                onRefresh={fetchTrips}
+                            />
+                        </div>
                     )}
                 </div>
             </div>

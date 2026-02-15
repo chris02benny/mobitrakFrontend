@@ -736,7 +736,7 @@ const LiveFleetMap = ({ isFullPage = false }) => {
 
                         {/* Right Modal - Item Details (Google Maps Style) */}
                         {selectedItemDetails && showLeftModal && (
-                            <div className="absolute left-[26rem] top-20 bottom-4 w-[400px] bg-white rounded-lg shadow-2xl z-[999] overflow-hidden flex flex-col">
+                            <div className="absolute left-[27rem] top-20 bottom-4 w-[400px] bg-white rounded-lg shadow-2xl z-[999] overflow-hidden flex flex-col">
                                 {/* Close Button */}
                                 <button
                                     onClick={() => setSelectedItemDetails(null)}
@@ -756,7 +756,7 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                                 <h2 className="text-2xl font-bold text-gray-900 mb-1">{selectedItemDetails.label}</h2>
                                                 <p className="text-sm text-gray-600 mb-6">Office Location</p>
 
-                                                <div className="space-y-3 border-t border-gray-200 pt-4">
+                                                <div className="space-y-3">
                                                     <div className="flex items-start gap-3">
                                                         <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
                                                         <p className="text-sm text-gray-700">{selectedItemDetails.data.address}</p>

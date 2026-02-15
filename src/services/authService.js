@@ -314,5 +314,65 @@ export const authService = {
         localStorage.removeItem('authToken');
         localStorage.removeItem('userRole');
         localStorage.removeItem('userHasPassword');
+    },
+
+    /**
+     * Send OTP for password reset
+     * @param {string} email - User's email address
+     */
+    forgotPassword: async (email) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/forgot-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    /**
+     * Verify OTP for password reset
+     * @param {string} email - User's email address
+     * @param {string} otp - The OTP code
+     */
+    verifyResetOtp: async (email, otp) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/verify-reset-otp`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, otp }),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    /**
+     * Reset password after OTP verification
+     * @param {string} email - User's email address
+     * @param {string} otp - The verified OTP code
+     * @param {string} newPassword - The new password
+     */
+    resetPassword: async (email, otp, newPassword) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/reset-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, otp, newPassword }),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     }
 };

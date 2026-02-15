@@ -1,0 +1,263 @@
+// This file contains the JSX rendering logic for the multi-step form
+// It will be used to replace the existing return statement in AddTripForm.jsx
+
+const steps = ['Assign', 'Customer Details', 'Route & Pricing', 'Review'];
+
+const renderStepContent = () => {
+    switch (currentStep) {
+        case 1:
+            return renderStep1Assign();
+        case 2:
+            return renderStep2CustomerDetails();
+        case 3:
+            return renderStep3RoutePricing();
+        case 4:
+            return renderStep4Review();
+        default:
+            return null;
+    }
+};
+
+const renderStep1Assign = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+        <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Step 1: Assign Vehicle & Driver</h2>
+            <p className="text-sm text-gray-600">Choose the type of trip and assign an available vehicle and driver.</p>
+        </div>
+
+        {/* Trip Type */}
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+                Select Trip Type <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+                <button
+                    type="button"
+                    onClick={() => {
+                        setFormData(prev => ({ ...prev, tripType: 'commercial', vehicleId: '' }));
+                        if (errors.tripType) {
+                            setErrors(prev => ({ ...prev, tripType: '' }));
+                        }
+                    }}
+                    className={`p-6 rounded-lg border-2 transition-all ${
+                        formData.tripType === 'commercial'
+                            ? 'border-amber-500 bg-amber-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                >
+                    <div className="flex flex-col items-center">
+                        <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-3 ${
+                            formData.tripType === 'commercial' ? 'bg-amber-100' : 'bg-gray-100'
+                        }`}>
+                            <Truck className={formData.tripType === 'commercial' ? 'text-amber-600' : 'text-gray-600'} size={32} />
+                        </div>
+                        <div className={`font-semibold text-lg ${formData.tripType === 'commercial' ? 'text-amber-700' : 'text-gray-700'}`}>
+                            Commercial
+                        </div>
+                        <div className="text-sm text-gray-500 mt-1">Heavy cargo, logistics, and bulk deliveries</div>
+                    </div>
+                    {formData.tripType === 'commercial' && (
+                        <div className="mt-3 flex justify-center">
+                            <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center">
+                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                    )}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        setFormData(prev => ({ ...prev, tripType: 'passenger', vehicleId: '' }));
+                        if (errors.tripType) {
+                            setErrors(prev => ({ ...prev, tripType: '' }));
+                        }
+                    }}
+                    className={`p-6 rounded-lg border-2 transition-all ${
+                        formData.tripType === 'passenger'
+                            ? 'border-amber-500 bg-amber-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                >
+                    <div className="flex flex-col items-center">
+                        <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-3 ${
+                            formData.tripType === 'passenger' ? 'bg-amber-100' : 'bg-gray-100'
+                        }`}>
+                            <User className={formData.tripType === 'passenger' ? 'text-amber-600' : 'text-gray-600'} size={32} />
+                        </div>
+                        <div className={`font-semibold text-lg ${formData.tripType === 'passenger' ? 'text-amber-700' : 'text-gray-700'}`}>
+                            Passenger
+                        </div>
+                        <div className="text-sm text-gray-500 mt-1">Bus transit, shuttle service, or corporate taxi</div>
+                    </div>
+                    {formData.tripType === 'passenger' && (
+                        <div className="mt-3 flex justify-center">
+                            <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center">
+                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                    )}
+                </button>
+            </div>
+            {errors.tripType && <p className="text-red-500 text-sm mt-2">{errors.tripType}</p>}
+        </div>
+
+        {/* Vehicle Selection */}
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Vehicle <span className="text-red-500">*</span>
+            </label>
+            <select
+                value={formData.vehicleId}
+                onChange={(e) => {
+                    setFormData(prev => ({ ...prev, vehicleId: e.target.value }));
+                    if (errors.vehicleId) {
+                        setErrors(prev => ({ ...prev, vehicleId: '' }));
+                    }
+                }}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
+                    errors.vehicleId ? 'border-red-500' : 'border-gray-300'
+                }`}
+            >
+                <option value="">Choose a vehicle from the fleet</option>
+                {filteredVehicles.map(vehicle => (
+                    <option key={vehicle._id} value={vehicle._id}>
+                        {vehicle.registrationNumber || vehicle.regnNo} - {vehicle.make || vehicle.makersName || 'Unknown'} {vehicle.model || vehicle.vehicleClass || ''}
+                    </option>
+                ))}
+            </select>
+            {errors.vehicleId && <p className="text-red-500 text-sm mt-1">{errors.vehicleId}</p>}
+        </div>
+
+        {/* Driver Selection */}
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                Assign Driver <span className="text-red-500">*</span>
+            </label>
+            <select
+                value={formData.driverId}
+                onChange={(e) => {
+                    setFormData(prev => ({ ...prev, driverId: e.target.value }));
+                    if (errors.driverId) {
+                        setErrors(prev => ({ ...prev, driverId: '' }));
+                    }
+                }}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
+                    errors.driverId ? 'border-red-500' : 'border-gray-300'
+                }`}
+            >
+                <option value="">Select an available driver</option>
+                {filteredDrivers.map(driver => (
+                    <option key={driver._id} value={driver._id}>
+                        {driver.name} {driver.email ? `(${driver.email})` : ''}
+                    </option>
+                ))}
+            </select>
+            {errors.driverId && <p className="text-red-500 text-sm mt-1">{errors.driverId}</p>}
+        </div>
+    </div>
+);
+
+const renderStep2CustomerDetails = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+        <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Step 2: Customer Details</h2>
+            <p className="text-sm text-gray-600">Provide contact information for the client associated with this delivery.</p>
+        </div>
+
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User size={18} className="text-gray-400" />
+                </div>
+                <input
+                    type="text"
+                    value={formData.customerName}
+                    onChange={(e) => {
+                        setFormData(prev => ({ ...prev, customerName: e.target.value }));
+                        if (errors.customerName) {
+                            setErrors(prev => ({ ...prev, customerName: '' }));
+                        }
+                    }}
+                    placeholder="e.g. Johnathan Smith"
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
+                        errors.customerName ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                />
+            </div>
+            {errors.customerName && <p className="text-red-500 text-sm mt-1">{errors.customerName}</p>}
+        </div>
+
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail size={18} className="text-gray-400" />
+                </div>
+                <input
+                    type="email"
+                    value={formData.customerEmail}
+                    onChange={(e) => {
+                        const email = e.target.value;
+                        setFormData(prev => ({ ...prev, customerEmail: email }));
+                        
+                        if (email && !/^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+                            setErrors(prev => ({ ...prev, customerEmail: 'Please enter a valid email address' }));
+                        } else {
+                            setErrors(prev => ({ ...prev, customerEmail: '' }));
+                        }
+                    }}
+                    placeholder="john.smith@example.com"
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
+                        errors.customerEmail ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                />
+            </div>
+            {errors.customerEmail && <p className="text-red-500 text-sm mt-1">{errors.customerEmail}</p>}
+            <p className="text-xs text-gray-500 mt-1">We'll use this for SMS delivery updates.</p>
+        </div>
+
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                Contact Number <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone size={18} className="text-gray-400" />
+                </div>
+                <input
+                    type="tel"
+                    value={formData.customerContact}
+                    onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '' || /^[0-9+\s-]*$/.test(value)) {
+                            setFormData(prev => ({ ...prev, customerContact: value }));
+                            
+                            if (value && !/^(\+91[\s-]?)?[6-9]\d{9}$/.test(value.replace(/[\s-]/g, ''))) {
+                                setErrors(prev => ({ ...prev, customerContact: 'Please enter a valid Indian mobile number' }));
+                            } else {
+                                setErrors(prev => ({ ...prev, customerContact: '' }));
+                            }
+                        }
+                    }}
+                    placeholder="+1 (555) 000-0000"
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
+                        errors.customerContact ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                />
+            </div>
+            {errors.customerContact && <p className="text-red-500 text-sm mt-1">{errors.customerContact}</p>}
+            <p className="text-xs text-gray-500 mt-1">We'll use this for SMS delivery updates.</p>
+        </div>
+    </div>
+);
+
+// Continue in next file part due to length...

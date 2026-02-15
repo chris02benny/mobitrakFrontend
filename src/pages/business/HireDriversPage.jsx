@@ -9,6 +9,7 @@ const HireDriversPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedDriver, setSelectedDriver] = useState(null);
     const [showHireModal, setShowHireModal] = useState(false);
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [sentRequests, setSentRequests] = useState({}); // Track sent requests by driver ID
     
@@ -138,36 +139,14 @@ const HireDriversPage = () => {
 
             await hiringService.sendHireRequest(hireData);
             
-            // Immediately update local state to show request was sent (optimistic update)
-            // Update with both possible keys to ensure matching works
-            const driverUserId = String(selectedDriver.userId || selectedDriver._id);
-            const driverProfileId = String(selectedDriver._id);
-            
-            console.log('Optimistic update - setting keys:', { driverUserId, driverProfileId });
-            
-            const updatedRequests = {
-                ...sentRequests,
-                [driverUserId]: 'PENDING'
-            };
-            
-            // Also set by profileId if different
-            if (driverProfileId && driverProfileId !== driverUserId) {
-                updatedRequests[driverProfileId] = 'PENDING';
-            }
-            
-            console.log('Updated sentRequests:', updatedRequests);
-            setSentRequests(updatedRequests);
-            
             toast.success('Hire request sent successfully! The driver will be notified via email.');
             
-            // Close modal after state update
-            setTimeout(() => {
-                setShowHireModal(false);
-                setSelectedDriver(null);
-            }, 100);
+            // Close modal first
+            setShowHireModal(false);
+            setSelectedDriver(null);
             
-            // Refresh sent requests in background to sync with server
-            fetchSentRequests();
+            // Refresh sent requests from server to get updated status
+            await fetchSentRequests();
             
             // Reset form
             setHireForm({
@@ -283,10 +262,6 @@ const HireDriversPage = () => {
                                     <Award size={16} className="text-gray-400" />
                                     <span>License: {driver.licenseDetails?.licenseType || 'N/A'}</span>
                                 </div>
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                    <Car size={16} className="text-gray-400" />
-                                    <span className="truncate">Vehicles: {getVehicleTypesText(driver.experience)}</span>
-                                </div>
 
                                 {/* Driver Preferences */}
                                 {driver.availability && (
@@ -314,7 +289,17 @@ const HireDriversPage = () => {
                             </div>
 
                             {/* Hire Button */}
-                            <div className="px-6 pb-6">
+                            <div className="px-6 pb-6 flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        setSelectedDriver(driver);
+                                        setShowDetailsModal(true);
+                                    }}
+                                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <User size={18} />
+                                    View Details
+                                </button>
                                 {(() => {
                                     const status = getRequestStatus(driver);
                                     console.log('Rendering button for driver:', driver._id, 'Status:', status);
@@ -323,40 +308,40 @@ const HireDriversPage = () => {
                                         return (
                                             <button
                                                 disabled
-                                                className="w-full bg-blue-100 text-blue-700 font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed"
+                                                className="flex-1 bg-blue-100 text-blue-700 font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed"
                                             >
                                                 <Loader2 size={18} className="animate-spin" />
-                                                Request Pending
+                                                Pending
                                             </button>
                                         );
                                     } else if (status === 'ACCEPTED') {
                                         return (
                                             <button
                                                 disabled
-                                                className="w-full bg-green-100 text-green-700 font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed"
+                                                className="flex-1 bg-green-100 text-green-700 font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed"
                                             >
                                                 <CheckCircle size={18} />
-                                                Request Accepted
+                                                Accepted
                                             </button>
                                         );
                                     } else if (status === 'REJECTED') {
                                         return (
                                             <button
                                                 onClick={() => handleHireClick(driver)}
-                                                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                                             >
                                                 <Briefcase size={18} />
-                                                Send New Request
+                                                Resend
                                             </button>
                                         );
                                     } else {
                                         return (
                                             <button
                                                 onClick={() => handleHireClick(driver)}
-                                                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                                             >
                                                 <Briefcase size={18} />
-                                                Hire Driver
+                                                Hire
                                             </button>
                                         );
                                     }
@@ -617,6 +602,190 @@ const HireDriversPage = () => {
                                         Send Hire Request
                                     </>
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Driver Details Modal */}
+            {showDetailsModal && selectedDriver && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">Driver Details</h2>
+                                <p className="text-sm text-gray-500 mt-1">Complete profile information</p>
+                            </div>
+                            <button
+                                onClick={() => setShowDetailsModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <X size={20} className="text-gray-500" />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6 space-y-6">
+                            {/* Driver Header */}
+                            <div className="flex items-start gap-4 pb-6 border-b border-gray-100">
+                                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                    {selectedDriver.userDetails?.profileImage ? (
+                                        <img src={selectedDriver.userDetails.profileImage} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <User size={32} className="text-gray-400" />
+                                    )}
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-xl font-semibold text-gray-900">
+                                        {selectedDriver.userDetails?.firstName || 'Unknown'} {selectedDriver.userDetails?.lastName || 'Driver'}
+                                    </h3>
+                                    <p className="text-gray-600 mt-1">{selectedDriver.userDetails?.email || 'N/A'}</p>
+                                    <div className="flex items-center gap-1 mt-2">
+                                        <Star size={16} className="text-amber-500 fill-amber-500" />
+                                        <span className="text-sm font-medium text-gray-700">
+                                            {selectedDriver.ratings?.averageRating?.toFixed(1) || '0.0'}
+                                        </span>
+                                        <span className="text-xs text-gray-400">
+                                            ({selectedDriver.ratings?.totalRatings || 0} reviews)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* License Information */}
+                            <div>
+                                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                    <ShieldCheck size={18} className="text-gray-600" />
+                                    License Information
+                                </h4>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="text-gray-600">License Number:</span>
+                                        <p className="font-medium text-gray-900 mt-1">{selectedDriver.licenseDetails?.licenseNumber || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-600">License Type:</span>
+                                        <p className="font-medium text-gray-900 mt-1">{selectedDriver.licenseDetails?.licenseType || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-600">Issue Date:</span>
+                                        <p className="font-medium text-gray-900 mt-1">
+                                            {selectedDriver.licenseDetails?.issueDate 
+                                                ? new Date(selectedDriver.licenseDetails.issueDate).toLocaleDateString('en-IN')
+                                                : 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-600">Valid Until:</span>
+                                        <p className="font-medium text-gray-900 mt-1">
+                                            {selectedDriver.licenseDetails?.validUpto 
+                                                ? new Date(selectedDriver.licenseDetails.validUpto).toLocaleDateString('en-IN')
+                                                : 'N/A'}
+                                        </p>
+                                    </div>
+                                    {selectedDriver.licenseDetails?.address && (
+                                        <div className="col-span-2">
+                                            <span className="text-gray-600">Address:</span>
+                                            <p className="font-medium text-gray-900 mt-1">{selectedDriver.licenseDetails.address}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Experience */}
+                            <div>
+                                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                    <Clock size={18} className="text-gray-600" />
+                                    Experience
+                                </h4>
+                                <div className="text-sm">
+                                    <p className="text-gray-600">Total Experience:</p>
+                                    <p className="font-medium text-gray-900 mt-1">{getExperienceText(selectedDriver.experience)}</p>
+                                    {selectedDriver.experience?.vehicleTypesOperated?.length > 0 && (
+                                        <>
+                                            <p className="text-gray-600 mt-3">Vehicle Types Operated:</p>
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                {selectedDriver.experience.vehicleTypesOperated.map((type, idx) => (
+                                                    <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                                                        {type}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Preferences */}
+                            {selectedDriver.availability && (
+                                <div>
+                                    <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                        <Briefcase size={18} className="text-gray-600" />
+                                        Work Preferences
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <span className="text-gray-600">Preferred Work Type:</span>
+                                            <p className="font-medium text-gray-900 mt-1">
+                                                {selectedDriver.availability.preferredWorkType?.replace('_', ' ') || 'Any'}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-600">Willing to Relocate:</span>
+                                            <p className="font-medium text-gray-900 mt-1">
+                                                {selectedDriver.availability.willingToRelocate ? 'Yes' : 'No'}
+                                            </p>
+                                        </div>
+                                        {selectedDriver.availability.expectedSalary?.min && (
+                                            <div className="col-span-2">
+                                                <span className="text-gray-600">Expected Salary:</span>
+                                                <p className="font-medium text-gray-900 mt-1">
+                                                    ₹{selectedDriver.availability.expectedSalary.min.toLocaleString()} 
+                                                    {selectedDriver.availability.expectedSalary.max 
+                                                        ? ` - ₹${selectedDriver.availability.expectedSalary.max.toLocaleString()}`
+                                                        : '+'} 
+                                                    {' per '}
+                                                    {selectedDriver.availability.expectedSalary.frequency?.toLowerCase() || 'month'}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {selectedDriver.availability.preferredLocations?.length > 0 && (
+                                            <div className="col-span-2">
+                                                <span className="text-gray-600">Preferred Locations:</span>
+                                                <div className="flex flex-wrap gap-2 mt-1">
+                                                    {selectedDriver.availability.preferredLocations.map((loc, idx) => (
+                                                        <span key={idx} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
+                                                            <MapPin size={12} className="inline mr-1" />
+                                                            {loc}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 sticky bottom-0 bg-white">
+                            <button
+                                onClick={() => setShowDetailsModal(false)}
+                                className="px-6 py-2.5 border border-gray-200 rounded-lg text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+                            >
+                                Close
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowDetailsModal(false);
+                                    handleHireClick(selectedDriver);
+                                }}
+                                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                            >
+                                <Briefcase size={18} />
+                                Send Hire Request
                             </button>
                         </div>
                     </div>

@@ -6,6 +6,10 @@ const AddVehicle = ({ onCancel, onSuccess }) => {
     // Form fields state
     const [formData, setFormData] = useState({
         regnNo: '',
+        registrationNumber: '',
+        make: '',
+        model: '',
+        vehicleType: 'goods',
         dateOfRegn: '',
         chassisNo: '',
         engineNo: '',
@@ -262,6 +266,52 @@ const AddVehicle = ({ onCancel, onSuccess }) => {
                                         required
                                         className="w-full p-2 border border-gray-200 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50"
                                         placeholder="e.g., KL 01 AB 1234"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Registration Number (Alternative)</label>
+                                    <input
+                                        type="text"
+                                        name="registrationNumber"
+                                        value={formData.registrationNumber}
+                                        onChange={handleInputChange}
+                                        className="w-full p-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        placeholder="e.g., KL 01 AB 1234"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Vehicle Type *</label>
+                                    <select
+                                        name="vehicleType"
+                                        value={formData.vehicleType}
+                                        onChange={handleInputChange}
+                                        required
+                                        className="w-full p-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    >
+                                        <option value="goods">Commercial (Goods)</option>
+                                        <option value="passenger">Passenger</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Make/Manufacturer</label>
+                                    <input
+                                        type="text"
+                                        name="make"
+                                        value={formData.make}
+                                        onChange={handleInputChange}
+                                        className="w-full p-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        placeholder="e.g., Tata, Mahindra"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Model</label>
+                                    <input
+                                        type="text"
+                                        name="model"
+                                        value={formData.model}
+                                        onChange={handleInputChange}
+                                        className="w-full p-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        placeholder="e.g., LPT 1109, Bolero"
                                     />
                                 </div>
                                 <div>

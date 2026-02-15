@@ -82,5 +82,99 @@ export const tripService = {
         } catch (error) {
             throw error.response?.data || error.message;
         }
+    },
+
+    // Update trip location (real-time tracking)
+    updateLocation: async (tripId, longitude, latitude) => {
+        try {
+            const response = await axios.put(`${API_URL}/${tripId}/location`, {
+                longitude,
+                latitude
+            }, {
+                headers: getAuthHeader()
+            });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // Get active trips with locations
+    getActiveTripsWithLocations: async () => {
+        try {
+            const response = await axios.get(`${API_URL}/active/locations`, {
+                headers: getAuthHeader()
+            });
+            return response.data.trips;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // Get assigned trips for driver (no pricing details)
+    getDriverAssignedTrips: async () => {
+        try {
+            const response = await axios.get(`${API_URL}/driver/assigned`, {
+                headers: getAuthHeader()
+            });
+            return response.data.trips;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // Start trip (driver)
+    startTrip: async (tripId) => {
+        try {
+            const response = await axios.put(`${API_URL}/driver/${tripId}/start`, {}, {
+                headers: getAuthHeader()
+            });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // Update stop status (driver)
+    updateStopStatus: async (tripId, stopIndex, location) => {
+        try {
+            const response = await axios.put(`${API_URL}/driver/${tripId}/stops/${stopIndex}`, {
+                location
+            }, {
+                headers: getAuthHeader()
+            });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // End trip (driver)
+    endTrip: async (tripId) => {
+        try {
+            const response = await axios.put(`${API_URL}/driver/${tripId}/end`, {}, {
+                headers: getAuthHeader()
+            });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // Get busy dates for a driver or vehicle
+    getBusyDates: async (driverId = null, vehicleId = null) => {
+        try {
+            const params = {};
+            if (driverId) params.driverId = driverId;
+            if (vehicleId) params.vehicleId = vehicleId;
+
+            const response = await axios.get(`${API_URL}/busy-dates`, {
+                headers: getAuthHeader(),
+                params
+            });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
     }
 };

@@ -48,15 +48,12 @@ const VehicleStatusTable = ({ vehicles = [], loading = false }) => {
                             </div>
                             <div className="flex flex-col">
                                 <span className="font-medium text-gray-900">
-                                    {vehicle.make || 'Unknown'} {vehicle.model || ''}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    {vehicle.vehicleClass || 'Vehicle'}
+                                    {vehicle.make || vehicle.makersName || 'Unknown'} {vehicle.model || vehicle.vehicleClass || ''}
                                 </span>
                             </div>
                         </div>
                         <div className="text-gray-700 font-medium">
-                            {vehicle.regnNo || 'N/A'}
+                            {vehicle.regnNo || vehicle.registrationNumber || 'N/A'}
                         </div>
                         <div>
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -64,7 +61,19 @@ const VehicleStatusTable = ({ vehicles = [], loading = false }) => {
                             </span>
                         </div>
                         <div className="text-gray-700 text-xs">
-                            {vehicle.fuelType || 'N/A'}
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                vehicle.vehicleType === 'goods' 
+                                    ? 'bg-blue-100 text-blue-800' 
+                                    : vehicle.vehicleType === 'passenger'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-800'
+                            }`}>
+                                {vehicle.vehicleType === 'goods' 
+                                    ? 'Commercial' 
+                                    : vehicle.vehicleType === 'passenger'
+                                    ? 'Passenger'
+                                    : 'N/A'}
+                            </span>
                         </div>
                         <span className="text-[13px] text-muted-foreground">
                             {vehicle.createdAt ? new Date(vehicle.createdAt).toLocaleDateString() : 'N/A'}

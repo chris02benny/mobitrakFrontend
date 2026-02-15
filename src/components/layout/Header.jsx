@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search, Bell, Settings, LogOut } from 'lucide-react';
+import { Search, Settings, LogOut } from 'lucide-react';
+import NotificationBell from '../common/NotificationBell';
 
 const Header = ({ onLogout }) => {
     const [showDropdown, setShowDropdown] = useState(false);
@@ -40,6 +41,8 @@ const Header = ({ onLogout }) => {
         // Business routes
         else if (path === '/business/dashboard') {
             return { title: 'Dashboard', subtitle: 'Overview of your fleet status today' };
+        } else if (path === '/business/trips') {
+            return { title: 'Trip Management', subtitle: 'Schedule and manage your fleet trips' };
         } else if (path === '/business/hire') {
             return { title: 'Hire Drivers', subtitle: 'Find and hire qualified drivers for your fleet' };
         } else if (path === '/business/map') {
@@ -90,10 +93,8 @@ const Header = ({ onLogout }) => {
             </div>
 
             <div className="flex items-center gap-6">
-                <div className="relative cursor-pointer">
-                    <Bell size={22} className="text-gray-900" />
-                    <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full"></div>
-                </div>
+                {/* Notification Bell */}
+                <NotificationBell />
 
                 {/* Settings Dropdown */}
                 <div className="relative" ref={dropdownRef}>

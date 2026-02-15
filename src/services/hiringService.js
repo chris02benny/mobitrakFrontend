@@ -248,16 +248,38 @@ export const hiringService = {
 
     /**
      * Get all employments (hired drivers) for fleet manager
+     * @param {Object} params - Query parameters (e.g., { assignmentStatus: 'UNASSIGNED' })
      */
-    getEmployments: async () => {
+    getEmployments: async (params = {}) => {
         try {
-            const response = await fetch('http://localhost:5003/api/employment', {
+            const queryString = new URLSearchParams(params).toString();
+            const url = `http://localhost:5003/api/employment${queryString ? `?${queryString}` : ''}`;
+            const response = await fetch(url, {
                 method: 'GET',
                 headers: getAuthHeaders()
             });
             return handleResponse(response);
         } catch (error) {
             console.error('Error fetching employments:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get available drivers (not in active trips)
+     * @param {Object} params - Query parameters (e.g., { startDateTime, endDateTime })
+     */
+    getAvailableDrivers: async (params = {}) => {
+        try {
+            const queryString = new URLSearchParams(params).toString();
+            const url = `http://localhost:5003/api/drivers/employments/available${queryString ? `?${queryString}` : ''}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: getAuthHeaders()
+            });
+            return handleResponse(response);
+        } catch (error) {
+            console.error('Error fetching available drivers:', error);
             throw error;
         }
     }

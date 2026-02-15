@@ -114,8 +114,8 @@ const PendingRequestsList = ({ requests, loading, onApprove }) => {
                                 <div className="flex items-center gap-2 text-sm">
                                     <Calendar size={16} className="text-gray-400" />
                                     <span className="text-gray-700">
-                                        {request.status === 'PENDING' 
-                                            ? `Sent: ${formatDate(request.createdAt)}` 
+                                        {request.status === 'PENDING'
+                                            ? `Sent: ${formatDate(request.createdAt)}`
                                             : `Accepted: ${formatDate(request.driverResponse?.respondedAt)}`}
                                     </span>
                                 </div>
@@ -131,9 +131,8 @@ const PendingRequestsList = ({ requests, loading, onApprove }) => {
 
                             {/* DL Consent Status - Only show for ACCEPTED requests */}
                             {request.status === 'ACCEPTED' && (
-                                <div className={`p-3 rounded-lg mb-4 ${
-                                    dlConsentGiven ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50 border border-gray-200'
-                                }`}>
+                                <div className={`p-3 rounded-lg mb-4 ${dlConsentGiven ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50 border border-gray-200'
+                                    }`}>
                                     <div className="flex items-center gap-2 text-sm">
                                         {dlConsentGiven ? (
                                             <>
@@ -206,7 +205,7 @@ const PendingRequestsList = ({ requests, loading, onApprove }) => {
 
             {/* DL Viewing Modal */}
             {showDLModal && (
-                <DLViewModal 
+                <DLViewModal
                     request={showDLModal}
                     onClose={() => setShowDLModal(null)}
                 />
@@ -243,9 +242,9 @@ const DLViewModal = ({ request, onClose }) => {
                 <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
                     {dlUrl ? (
                         <div className="space-y-4">
-                            <img 
-                                src={dlUrl} 
-                                alt="Driving License" 
+                            <img
+                                src={dlUrl}
+                                alt="Driving License"
                                 className="w-full rounded-lg border border-gray-200"
                             />
                             <div className="grid grid-cols-2 gap-4">
@@ -300,7 +299,7 @@ const DriversPage = () => {
         const handleClickOutside = () => {
             if (openMenuId) setOpenMenuId(null);
         };
-        
+
         if (openMenuId) {
             document.addEventListener('click', handleClickOutside);
             return () => document.removeEventListener('click', handleClickOutside);
@@ -379,6 +378,13 @@ const DriversPage = () => {
     };
 
     const handleTerminateClick = (employment) => {
+        // Check if driver is assigned to a trip
+        if (employment.assignmentStatus === 'ASSIGNED') {
+            toast.error('This driver is currently assigned to an active trip and cannot be terminated.');
+            setOpenMenuId(null);
+            return;
+        }
+
         setSelectedDriver({ employment, userDetails: employment.driverId?.userDetails });
         setShowConfirmModal(true);
         setOpenMenuId(null);
@@ -436,37 +442,33 @@ const DriversPage = () => {
                     <div className="bg-white border border-gray-200 rounded-xl p-1 flex gap-1 w-full max-w-md">
                         <button
                             onClick={() => setActiveTab('drivers')}
-                            className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all ${
-                                activeTab === 'drivers'
+                            className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all ${activeTab === 'drivers'
                                     ? 'bg-amber-500 text-white shadow-sm'
                                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
+                                }`}
                         >
                             <div className="flex items-center justify-center gap-2">
                                 <Users size={18} />
                                 <span>Drivers</span>
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                    activeTab === 'drivers' ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'
-                                }`}>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${activeTab === 'drivers' ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'
+                                    }`}>
                                     {employees.length}
                                 </span>
                             </div>
                         </button>
                         <button
                             onClick={() => setActiveTab('pending')}
-                            className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all ${
-                                activeTab === 'pending'
+                            className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all ${activeTab === 'pending'
                                     ? 'bg-amber-500 text-white shadow-sm'
                                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
+                                }`}
                         >
                             <div className="flex items-center justify-center gap-2">
                                 <Clock size={18} />
                                 <span>Pending</span>
                                 {pendingRequests.length > 0 && (
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                        activeTab === 'pending' ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-700'
-                                    }`}>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${activeTab === 'pending' ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-700'
+                                        }`}>
                                         {pendingRequests.length}
                                     </span>
                                 )}
@@ -491,192 +493,192 @@ const DriversPage = () => {
                 <>
                     {/* Stats Row */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
-                            <Users size={20} className="text-amber-600" />
+                        <div className="bg-white rounded-xl border border-gray-200 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+                                    <Users size={20} className="text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
+                                    <p className="text-sm text-gray-500">Total Drivers</p>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
-                            <p className="text-sm text-gray-500">Total Drivers</p>
+                        <div className="bg-white rounded-xl border border-gray-200 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+                                    <Shield size={20} className="text-green-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900">
+                                        {employees.filter(e => e.status === 'ACTIVE').length}
+                                    </p>
+                                    <p className="text-sm text-gray-500">Active</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl border border-gray-200 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center">
+                                    <Clock size={20} className="text-yellow-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900">
+                                        {employees.filter(e => e.status === 'ON_LEAVE').length}
+                                    </p>
+                                    <p className="text-sm text-gray-500">On Leave</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl border border-gray-200 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                                    <Car size={20} className="text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900">
+                                        {employees.filter(e => e.assignedVehicle?.vehicleId).length}
+                                    </p>
+                                    <p className="text-sm text-gray-500">With Vehicle</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
-                            <Shield size={20} className="text-green-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-900">
-                                {employees.filter(e => e.status === 'ACTIVE').length}
-                            </p>
-                            <p className="text-sm text-gray-500">Active</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center">
-                            <Clock size={20} className="text-yellow-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-900">
-                                {employees.filter(e => e.status === 'ON_LEAVE').length}
-                            </p>
-                            <p className="text-sm text-gray-500">On Leave</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-                            <Car size={20} className="text-blue-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-900">
-                                {employees.filter(e => e.assignedVehicle?.vehicleId).length}
-                            </p>
-                            <p className="text-sm text-gray-500">With Vehicle</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            {/* Drivers List */}
-            {loading ? (
-                <div className="flex items-center justify-center h-64 bg-white rounded-xl border border-gray-200">
-                    <div className="flex flex-col items-center">
-                        <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                        <p className="mt-4 text-gray-500">Loading your drivers...</p>
-                    </div>
-                </div>
-            ) : filteredEmployees.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 bg-white rounded-xl border border-gray-200">
-                    <UserX size={48} className="text-gray-300 mb-4" />
-                    <p className="text-gray-500 font-medium">
-                        {employees.length === 0 ? 'No drivers hired yet' : 'No drivers match your search'}
-                    </p>
-                    <p className="text-gray-400 text-sm mt-1">
-                        {employees.length === 0 ? 'Go to "Hire Drivers" to find and hire drivers' : 'Try a different search term'}
-                    </p>
-                </div>
-            ) : (
-                <div className="bg-white rounded-xl border border-gray-200">
-                    <table className="w-full">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Driver</th>
-                                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">License</th>
-                                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Joined</th>
-                                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Salary</th>
-                                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Status</th>
-                                <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Rating</th>
-                                <th className="text-right px-6 py-4 text-sm font-medium text-gray-500">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredEmployees.map((employment) => {
-                                const driver = employment.driverId;
-                                const userDetails = driver?.userDetails; // Backend populates this
-                                
-                                return (
-                                    <tr 
-                                        key={employment._id} 
-                                        className="hover:bg-gray-50 transition-colors"
-                                    >
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
-                                                    {userDetails?.profileImage ? (
-                                                        <img src={userDetails.profileImage} alt="" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <Users size={18} className="text-gray-400" />
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-gray-900">
-                                                        {userDetails?.firstName || 'Unknown'} {userDetails?.lastName || 'Driver'}
-                                                    </p>
-                                                    <p className="text-sm text-gray-500">{userDetails?.email || ''}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="text-sm font-mono text-gray-700">
-                                                {driver?.licenseDetails?.licenseNumber || 'N/A'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-700">
-                                            {formatDate(employment.startDate)}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                                            {formatSalary(employment.salary)}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(employment.status)}`}>
-                                                {employment.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-1">
-                                                <Star size={14} className="text-amber-500 fill-amber-500" />
-                                                <span className="text-sm font-medium text-gray-700">
-                                                    {driver?.ratings?.averageRating?.toFixed(1) || '0.0'}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 relative">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setOpenMenuId(openMenuId === employment._id ? null : employment._id);
-                                                    }}
-                                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                                                >
-                                                    <MoreVertical size={18} className="text-gray-500" />
-                                                </button>
-                                                
-                                                {openMenuId === employment._id && (
-                                                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedDriver({ employment, userDetails });
-                                                                setShowDetailsModal(true);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 rounded-t-lg"
-                                                        >
-                                                            <Eye size={16} />
-                                                            View Details
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleTerminateClick(employment);
-                                                            }}
-                                                            className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 rounded-b-lg"
-                                                        >
-                                                            <UserX size={16} />
-                                                            Terminate Contract
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </td>
+                    {/* Drivers List */}
+                    {loading ? (
+                        <div className="flex items-center justify-center h-64 bg-white rounded-xl border border-gray-200">
+                            <div className="flex flex-col items-center">
+                                <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                                <p className="mt-4 text-gray-500">Loading your drivers...</p>
+                            </div>
+                        </div>
+                    ) : filteredEmployees.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-64 bg-white rounded-xl border border-gray-200">
+                            <UserX size={48} className="text-gray-300 mb-4" />
+                            <p className="text-gray-500 font-medium">
+                                {employees.length === 0 ? 'No drivers hired yet' : 'No drivers match your search'}
+                            </p>
+                            <p className="text-gray-400 text-sm mt-1">
+                                {employees.length === 0 ? 'Go to "Hire Drivers" to find and hire drivers' : 'Try a different search term'}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-xl border border-gray-200">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Driver</th>
+                                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">License</th>
+                                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Joined</th>
+                                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Salary</th>
+                                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Status</th>
+                                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-500">Rating</th>
+                                        <th className="text-right px-6 py-4 text-sm font-medium text-gray-500">Actions</th>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {filteredEmployees.map((employment) => {
+                                        const driver = employment.driverId;
+                                        const userDetails = driver?.userDetails; // Backend populates this
+
+                                        return (
+                                            <tr
+                                                key={employment._id}
+                                                className="hover:bg-gray-50 transition-colors"
+                                            >
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                                                            {userDetails?.profileImage ? (
+                                                                <img src={userDetails.profileImage} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <Users size={18} className="text-gray-400" />
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium text-gray-900">
+                                                                {userDetails?.firstName || 'Unknown'} {userDetails?.lastName || 'Driver'}
+                                                            </p>
+                                                            <p className="text-sm text-gray-500">{userDetails?.email || ''}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm font-mono text-gray-700">
+                                                        {driver?.licenseDetails?.licenseNumber || 'N/A'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-700">
+                                                    {formatDate(employment.startDate)}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                                                    {formatSalary(employment.salary)}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(employment.status)}`}>
+                                                        {employment.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-1">
+                                                        <Star size={14} className="text-amber-500 fill-amber-500" />
+                                                        <span className="text-sm font-medium text-gray-700">
+                                                            {driver?.ratings?.averageRating?.toFixed(1) || '0.0'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 relative">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setOpenMenuId(openMenuId === employment._id ? null : employment._id);
+                                                            }}
+                                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                                        >
+                                                            <MoreVertical size={18} className="text-gray-500" />
+                                                        </button>
+
+                                                        {openMenuId === employment._id && (
+                                                            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedDriver({ employment, userDetails });
+                                                                        setShowDetailsModal(true);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                    className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 rounded-t-lg"
+                                                                >
+                                                                    <Eye size={16} />
+                                                                    View Details
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleTerminateClick(employment);
+                                                                    }}
+                                                                    className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 rounded-b-lg"
+                                                                >
+                                                                    <UserX size={16} />
+                                                                    Terminate Contract
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </>
             ) : (
                 /* Pending Tab - Show accepted hire requests awaiting approval */
-                <PendingRequestsList 
+                <PendingRequestsList
                     requests={pendingRequests}
                     loading={loading}
                     onApprove={() => {
@@ -728,7 +730,7 @@ const DriversPage = () => {
                             </div>
 
                             <p className="text-sm text-gray-600">
-                                This will permanently end the employment relationship and update the driver's status to Unemployed. 
+                                This will permanently end the employment relationship and update the driver's status to Unemployed.
                                 You will be asked to provide details and a rating in the next step.
                             </p>
                         </div>
@@ -766,7 +768,7 @@ const DriversPage = () => {
                             <div className="p-4 bg-red-50 border border-red-100 rounded-lg">
                                 <p className="text-sm text-red-800">
                                     <strong>Warning:</strong> This will terminate the employment contract with{' '}
-                                    <strong>{selectedDriver.userDetails?.firstName} {selectedDriver.userDetails?.lastName}</strong> 
+                                    <strong>{selectedDriver.userDetails?.firstName} {selectedDriver.userDetails?.lastName}</strong>
                                     {' '}and set their status to Unemployed.
                                 </p>
                             </div>
@@ -778,9 +780,8 @@ const DriversPage = () => {
                                 <select
                                     value={terminateData.reason}
                                     onChange={(e) => setTerminateData({ ...terminateData, reason: e.target.value })}
-                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
-                                        !terminateData.reason ? 'border-red-300' : 'border-gray-300'
-                                    }`}
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${!terminateData.reason ? 'border-red-300' : 'border-gray-300'
+                                        }`}
                                 >
                                     <option value="">Select a reason</option>
                                     <option value="PERFORMANCE">Poor Performance</option>
@@ -802,9 +803,8 @@ const DriversPage = () => {
                                     onChange={(e) => setTerminateData({ ...terminateData, details: e.target.value })}
                                     rows={4}
                                     placeholder="Provide detailed information about the termination..."
-                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none ${
-                                        !terminateData.details || terminateData.details.trim() === '' ? 'border-red-300' : 'border-gray-300'
-                                    }`}
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none ${!terminateData.details || terminateData.details.trim() === '' ? 'border-red-300' : 'border-gray-300'
+                                        }`}
                                 />
                             </div>
 
@@ -822,11 +822,10 @@ const DriversPage = () => {
                                         >
                                             <Star
                                                 size={32}
-                                                className={`transition-colors ${
-                                                    star <= terminateData.rating
+                                                className={`transition-colors ${star <= terminateData.rating
                                                         ? 'text-amber-500 fill-amber-500'
                                                         : 'text-gray-300'
-                                                }`}
+                                                    }`}
                                             />
                                         </button>
                                     ))}
@@ -851,12 +850,12 @@ const DriversPage = () => {
                             <button
                                 onClick={handleTerminateSubmit}
                                 disabled={
-                                    terminating || 
-                                    !terminateData.reason || 
+                                    terminating ||
+                                    !terminateData.reason ||
                                     terminateData.reason === '' ||
-                                    !terminateData.details || 
+                                    !terminateData.details ||
                                     terminateData.details.trim() === '' ||
-                                    !terminateData.rating || 
+                                    !terminateData.rating ||
                                     terminateData.rating === 0
                                 }
                                 className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -879,14 +878,14 @@ const DriversPage = () => {
 };
 
 // Driver Details Modal
-const DriverDetailsModal = ({ 
-    employment, 
-    userDetails, 
-    onClose, 
-    formatDate, 
-    formatSalary, 
-    getPositionLabel, 
-    getStatusColor 
+const DriverDetailsModal = ({
+    employment,
+    userDetails,
+    onClose,
+    formatDate,
+    formatSalary,
+    getPositionLabel,
+    getStatusColor
 }) => {
     const driver = employment.driverId;
 

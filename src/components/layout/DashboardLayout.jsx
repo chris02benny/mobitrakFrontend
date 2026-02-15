@@ -18,7 +18,7 @@ const DashboardLayout = () => {
             <div className="flex-1 flex flex-col h-screen overflow-hidden">
                 <Header onLogout={handleLogout} />
                 <main className="flex-1 overflow-y-auto bg-slate-50">
-                    <div className="p-8 pb-12 h-full">
+                    <div className="p-6 h-full">
                         <div className="max-w-[1600px] mx-auto h-full">
                             <Outlet />
                         </div>

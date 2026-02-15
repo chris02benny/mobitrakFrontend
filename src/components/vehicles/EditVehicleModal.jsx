@@ -2,11 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { vehicleService } from '../../services/vehicleService';
 import ConfirmationModal from '../common/ConfirmationModal';
 import { Upload, X, Check, Loader2, FileText, Eye, AlertTriangle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const EditVehicleModal = ({ vehicle, onCancel, onSuccess }) => {
     // Form fields state - initialize with existing vehicle data
     const [formData, setFormData] = useState({
         regnNo: '',
+        registrationNumber: '',
+        make: '',
+        model: '',
+        vehicleType: 'goods',
         dateOfRegn: '',
         chassisNo: '',
         engineNo: '',
@@ -21,7 +26,8 @@ const EditVehicleModal = ({ vehicle, onCancel, onSuccess }) => {
         taxUpto: '',
         bodyType: '',
         dateOfEffect: '',
-        description: ''
+        description: '',
+        status: 'IDLE'
     });
 
     const [rcBookFile, setRcBookFile] = useState(null);
@@ -42,9 +48,13 @@ const EditVehicleModal = ({ vehicle, onCancel, onSuccess }) => {
         if (vehicle) {
             console.log('Vehicle data in edit modal:', vehicle);
             console.log('Vehicle images:', vehicle.vehicleImages);
-            
+
             setFormData({
                 regnNo: vehicle.regnNo || vehicle.extractedData?.regnNo || '',
+                registrationNumber: vehicle.registrationNumber || vehicle.regnNo || '',
+                make: vehicle.make || vehicle.makersName || '',
+                model: vehicle.model || vehicle.vehicleClass || '',
+                vehicleType: vehicle.vehicleType || 'goods',
                 dateOfRegn: vehicle.dateOfRegn || '',
                 chassisNo: vehicle.chassisNo || '',
                 engineNo: vehicle.engineNo || '',
@@ -59,7 +69,8 @@ const EditVehicleModal = ({ vehicle, onCancel, onSuccess }) => {
                 taxUpto: vehicle.taxUpto || '',
                 bodyType: vehicle.bodyType || '',
                 dateOfEffect: vehicle.dateOfEffect || '',
-                description: vehicle.description || ''
+                description: vehicle.description || '',
+                status: vehicle.status || 'IDLE'
             });
 
             // Set existing RC book image
@@ -158,7 +169,7 @@ const EditVehicleModal = ({ vehicle, onCancel, onSuccess }) => {
 
         // Append all form fields
         Object.keys(formData).forEach(key => {
-            if (formData[key]) {
+            if (formData[key] !== null && formData[key] !== undefined && formData[key] !== '') {
                 data.append(key, formData[key]);
             }
         });
@@ -179,9 +190,15 @@ const EditVehicleModal = ({ vehicle, onCancel, onSuccess }) => {
         try {
             const response = await vehicleService.updateVehicle(vehicle._id, data);
             setShowSaveConfirmation(false);
+            toast.success('Vehicle updated successfully!');
             onSuccess(response.vehicle);
+            // Auto-close modal after successful update
+            setTimeout(() => {
+                onCancel();
+            }, 500);
         } catch (err) {
             setError(err.message || 'Failed to update vehicle.');
+            toast.error(err.message || 'Failed to update vehicle');
             setShowSaveConfirmation(false);
         } finally {
             setUploading(false);
@@ -302,6 +319,49 @@ const EditVehicleModal = ({ vehicle, onCancel, onSuccess }) => {
                                             onChange={handleInputChange}
                                             required
                                             className="w-full p-2 border border-gray-200 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Registration Number</label>
+                                        <input
+                                            type="text"
+                                            name="registrationNumber"
+                                            value={formData.registrationNumber}
+                                            onChange={handleInputChange}
+                                            className="w-full p-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Vehicle Type *</label>
+                                        <select
+                                            name="vehicleType"
+                                            value={formData.vehicleType}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full p-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        >
+                                            <option value="goods">Commercial (Goods)</option>
+                                            <option value="passenger">Passenger</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Make/Manufacturer</label>
+                                        <input
+                                            type="text"
+                                            name="make"
+                                            value={formData.make}
+                                            onChange={handleInputChange}
+                                            className="w-full p-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Model</label>
+                                        <input
+                                            type="text"
+                                            name="model"
+                                            value={formData.model}
+                                            onChange={handleInputChange}
+                                            className="w-full p-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                                         />
                                     </div>
                                     <div>
@@ -525,6 +585,48 @@ const EditVehicleModal = ({ vehicle, onCancel, onSuccess }) => {
                                         </label>
                                     </div>
                                 </div>
+
+                                {/* Status Management */}
+                                <div className="pt-4 border-t border-gray-200">
+                                    <h4 className="font-medium text-gray-700 mb-3">Vehicle Status</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Current Status</label>
+                                            <div className="flex items-center gap-2">
+                                                <select
+                                                    name="status"
+                                                    value={formData.status}
+                                                    onChange={(e) => {
+                                                        const newStatus = e.target.value;
+                                                        if (newStatus === 'MAINTENANCE' && vehicle.status === 'ASSIGNED') {
+                                                            toast.error('Vehicle cannot be put under maintenance while assigned to an active trip');
+                                                            return;
+                                                        }
+                                                        handleInputChange(e);
+                                                    }}
+                                                    className={`w-full p-2 border border-gray-200 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 ${formData.status === 'ASSIGNED' ? 'bg-amber-50 text-amber-700' :
+                                                        formData.status === 'MAINTENANCE' ? 'bg-red-50 text-red-700' :
+                                                            'bg-green-50 text-green-700'
+                                                        }`}
+                                                    disabled={formData.status === 'ASSIGNED'}
+                                                >
+                                                    <option value="IDLE">Active/Idle</option>
+                                                    <option value="MAINTENANCE">Under Maintenance</option>
+                                                    {formData.status === 'ASSIGNED' && <option value="ASSIGNED">Assigned to Trip</option>}
+                                                </select>
+                                                {formData.status === 'ASSIGNED' && (
+                                                    <div className="text-xs text-amber-600 flex items-center gap-1">
+                                                        <AlertTriangle size={12} />
+                                                        Locked while assigned
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] text-gray-500 mt-1">
+                                                Vehicles in maintenance cannot be assigned to new trips.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Form Actions */}
@@ -558,28 +660,30 @@ const EditVehicleModal = ({ vehicle, onCancel, onSuccess }) => {
             </div>
 
             {/* RC Preview Modal */}
-            {showRcPreview && rcBookImageUrl && (
-                <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={() => setShowRcPreview(false)}>
-                    <div className="relative max-w-4xl w-full max-h-[90vh] bg-white rounded-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                            <h3 className="font-semibold text-gray-900">RC Book Preview</h3>
-                            <button
-                                onClick={() => setShowRcPreview(false)}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
-                            >
-                                <X size={24} />
-                            </button>
-                        </div>
-                        <div className="p-4 overflow-auto max-h-[calc(90vh-80px)]">
-                            <img
-                                src={rcBookImageUrl}
-                                alt="RC Book"
-                                className="w-full h-auto"
-                            />
+            {
+                showRcPreview && rcBookImageUrl && (
+                    <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={() => setShowRcPreview(false)}>
+                        <div className="relative max-w-4xl w-full max-h-[90vh] bg-white rounded-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                                <h3 className="font-semibold text-gray-900">RC Book Preview</h3>
+                                <button
+                                    onClick={() => setShowRcPreview(false)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+                            <div className="p-4 overflow-auto max-h-[calc(90vh-80px)]">
+                                <img
+                                    src={rcBookImageUrl}
+                                    alt="RC Book"
+                                    className="w-full h-auto"
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Save Confirmation Modal */}
             <ConfirmationModal

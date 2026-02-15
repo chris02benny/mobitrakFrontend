@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { MoreHorizontal, UserCheck, UserX, User, Bell } from 'lucide-react';
+import { MoreHorizontal, UserCheck, UserX, User, Bell, MapPin, Edit, Trash2 } from 'lucide-react';
 import { hiringService } from '../../services/hiringService';
+import { tripService } from '../../services/tripService';
+import NotificationService from '../../services/notificationService';
 
 const AlertItem = ({ color, title, description, time, icon: Icon }) => {
     return (
@@ -28,14 +30,62 @@ const AlertItem = ({ color, title, description, time, icon: Icon }) => {
 
 const RecentAlerts = () => {
     const [hireAlerts, setHireAlerts] = useState([]);
+    const [tripAlerts, setTripAlerts] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchHireAlerts();
+        fetchTripAlerts();
         // Refresh every 30 seconds
-        const interval = setInterval(fetchHireAlerts, 30000);
+        const interval = setInterval(() => {
+            fetchHireAlerts();
+            fetchTripAlerts();
+        }, 30000);
         return () => clearInterval(interval);
     }, []);
+
+    const fetchTripAlerts = async () => {
+        try {
+            // Fetch notifications related to trips
+            const notifications = await NotificationService.getNotifications(1, 20);
+            
+            // Filter and convert trip notifications to alerts
+            const tripNotifications = (notifications.notifications || [])
+                .filter(notif => ['TRIP_CREATED', 'TRIP_UPDATED', 'TRIP_DELETED'].includes(notif.type))
+                .filter(notif => isRecent(notif.createdAt))
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                .slice(0, 5)
+                .map(notif => {
+                    let icon = MapPin;
+                    let color = '#3b82f6';
+                    
+                    if (notif.type === 'TRIP_CREATED') {
+                        icon = MapPin;
+                        color = '#10b981'; // green
+                    } else if (notif.type === 'TRIP_UPDATED') {
+                        icon = Edit;
+                        color = '#f59e0b'; // amber
+                    } else if (notif.type === 'TRIP_DELETED') {
+                        icon = Trash2;
+                        color = '#ef4444'; // red
+                    }
+                    
+                    return {
+                        id: notif._id,
+                        type: notif.type.toLowerCase(),
+                        title: notif.title,
+                        description: notif.message.substring(0, 60) + (notif.message.length > 60 ? '...' : ''),
+                        time: formatTimeAgo(notif.createdAt),
+                        color: color,
+                        icon: icon
+                    };
+                });
+            
+            setTripAlerts(tripNotifications);
+        } catch (error) {
+            console.error('Error fetching trip alerts:', error);
+        }
+    };
 
     const fetchHireAlerts = async () => {
         try {
@@ -98,8 +148,21 @@ const RecentAlerts = () => {
         return `${diffDays}d ago`;
     };
 
-    // Only show hire alerts - removed dummy/static alerts
-    const allAlerts = hireAlerts.slice(0, 6);
+    // Combine all alerts and sort by time
+    const allAlerts = [...tripAlerts, ...hireAlerts]
+        .sort((a, b) => {
+            // Parse time strings to compare (newest first)
+            const getMinutes = (timeStr) => {
+                if (timeStr === 'Just now') return 0;
+                const num = parseInt(timeStr);
+                if (timeStr.includes('m')) return num;
+                if (timeStr.includes('h')) return num * 60;
+                if (timeStr.includes('d')) return num * 1440;
+                return 9999;
+            };
+            return getMinutes(a.time) - getMinutes(b.time);
+        })
+        .slice(0, 6);
 
     return (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col h-full">
@@ -107,9 +170,9 @@ const RecentAlerts = () => {
                 <div className="flex items-center gap-2">
                     <Bell size={18} className="text-amber-500" />
                     <span className="font-semibold text-gray-900">Recent Alerts</span>
-                    {hireAlerts.filter(a => a.type === 'accepted' || a.type === 'rejected').length > 0 && (
+                    {(hireAlerts.filter(a => a.type === 'accepted' || a.type === 'rejected').length + tripAlerts.length) > 0 && (
                         <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
-                            {hireAlerts.filter(a => a.type === 'accepted' || a.type === 'rejected').length} new
+                            {hireAlerts.filter(a => a.type === 'accepted' || a.type === 'rejected').length + tripAlerts.length} new
                         </span>
                     )}
                 </div>

@@ -1,14 +1,14 @@
 import React from 'react';
-import { X, Building2, Truck, User, ArrowRight, MapPin, Phone, Mail } from 'lucide-react';
+import { X, Building2, Truck, User, ArrowRight, MapPin, Phone, Mail, Navigation, Calendar, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 /**
  * LocationDetailModal Component
- * Shows details of Office, Vehicle, or Driver with navigation option
+ * Shows details of Office, Vehicle, Driver, or Trip with navigation option
  * 
  * @param {Object} props
  * @param {Object} props.data - The location data object
- * @param {string} props.type - Type: 'office', 'vehicle', or 'driver'
+ * @param {string} props.type - Type: 'office', 'vehicle', 'driver', or 'trip'
  * @param {Function} props.onClose - Function to close the modal
  */
 const LocationDetailModal = ({ data, type, onClose }) => {
@@ -24,6 +24,8 @@ const LocationDetailModal = ({ data, type, onClose }) => {
                 return <Truck className="w-6 h-6 text-blue-500" />;
             case 'driver':
                 return <User className="w-6 h-6 text-green-500" />;
+            case 'trip':
+                return <Navigation className="w-6 h-6 text-purple-500" />;
             default:
                 return <MapPin className="w-6 h-6 text-gray-500" />;
         }
@@ -37,6 +39,8 @@ const LocationDetailModal = ({ data, type, onClose }) => {
                 return data.regnNo || 'Vehicle';
             case 'driver':
                 return data.fullName || 'Driver';
+            case 'trip':
+                return `Trip #${data._id?.slice(-6) || 'N/A'}`;
             default:
                 return 'Location';
         }
@@ -48,6 +52,8 @@ const LocationDetailModal = ({ data, type, onClose }) => {
                 return data.images?.[0]?.url || data.rcImage?.url || null;
             case 'driver':
                 return data.profilePhoto?.url || data.dlImage?.url || null;
+            case 'trip':
+                return data.vehicleInfo?.images?.[0]?.url || data.vehicleInfo?.rcImage?.url || null;
             default:
                 return null;
         }
@@ -63,6 +69,9 @@ const LocationDetailModal = ({ data, type, onClose }) => {
                 break;
             case 'office':
                 navigate('/dashboard?tab=settings');
+                break;
+            case 'trip':
+                navigate('/dashboard/trips');
                 break;
             default:
                 break;
@@ -137,6 +146,56 @@ const LocationDetailModal = ({ data, type, onClose }) => {
                     </span>
                 </div>
             )}
+            {data.liveTracking && (
+                <>
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                        <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                            <Navigation className="w-3.5 h-3.5 text-green-500" />
+                            Live Tracking
+                        </p>
+                    </div>
+                    {data.speed !== undefined && (
+                        <div className="mb-3">
+                            <p className="text-xs text-gray-500 mb-1">Current Speed</p>
+                            <p className="text-sm font-semibold text-gray-900">{(data.speed * 3.6).toFixed(1)} km/h</p>
+                        </div>
+                    )}
+                    {data.course !== undefined && (
+                        <div className="mb-3">
+                            <p className="text-xs text-gray-500 mb-1">Course</p>
+                            <p className="text-sm text-gray-700">{data.course}°</p>
+                        </div>
+                    )}
+                    {data.altitude !== undefined && (
+                        <div className="mb-3">
+                            <p className="text-xs text-gray-500 mb-1">Altitude</p>
+                            <p className="text-sm text-gray-700">{data.altitude} m</p>
+                        </div>
+                    )}
+                    {data.lastUpdate && (
+                        <div className="mb-3">
+                            <p className="text-xs text-gray-500 mb-1">Last Update</p>
+                            <p className="text-sm text-gray-700">{data.lastUpdate}</p>
+                        </div>
+                    )}
+                    {data.attributes && Object.keys(data.attributes).length > 0 && (
+                        <div className="mb-3">
+                            <p className="text-xs text-gray-500 mb-1">Additional Info</p>
+                            <div className="text-xs text-gray-600 space-y-1">
+                                {data.attributes.batteryLevel && (
+                                    <div>Battery: {data.attributes.batteryLevel}%</div>
+                                )}
+                                {data.attributes.ignition !== undefined && (
+                                    <div>Ignition: {data.attributes.ignition ? 'On' : 'Off'}</div>
+                                )}
+                                {data.attributes.odometer && (
+                                    <div>Odometer: {(data.attributes.odometer / 1000).toFixed(1)} km</div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
         </>
     );
 
@@ -186,6 +245,90 @@ const LocationDetailModal = ({ data, type, onClose }) => {
         </>
     );
 
+    const renderTripDetails = () => (
+        <>
+            {data._id && (
+                <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1">Trip ID</p>
+                    <p className="text-sm font-mono text-gray-900">{data._id}</p>
+                </div>
+            )}
+            {data.status && (
+                <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1">Status</p>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                        data.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                        data.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                        data.status === 'SCHEDULED' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-100 text-gray-700'
+                    }`}>
+                        {data.status.replace('_', ' ')}
+                    </span>
+                </div>
+            )}
+            {data.vehicleInfo && (
+                <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1">Vehicle</p>
+                    <div className="flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-blue-500" />
+                        <p className="text-sm font-medium text-gray-900">
+                            {data.vehicleInfo.regnNo || 'N/A'}
+                        </p>
+                    </div>
+                </div>
+            )}
+            {data.driverInfo && (
+                <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1">Driver</p>
+                    <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-green-500" />
+                        <p className="text-sm font-medium text-gray-900">
+                            {data.driverInfo.fullName || 'N/A'}
+                        </p>
+                    </div>
+                </div>
+            )}
+            {data.tripType && (
+                <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1">Trip Type</p>
+                    <p className="text-sm text-gray-700 capitalize">{data.tripType.replace('_', ' ')}</p>
+                </div>
+            )}
+            {data.startLocation?.address && (
+                <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> Start Location
+                    </p>
+                    <p className="text-sm text-gray-700">{data.startLocation.address}</p>
+                </div>
+            )}
+            {data.endLocation?.address && (
+                <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> End Location
+                    </p>
+                    <p className="text-sm text-gray-700">{data.endLocation.address}</p>
+                </div>
+            )}
+            {data.estimatedDistance && (
+                <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1">Estimated Distance</p>
+                    <p className="text-sm text-gray-700">{(data.estimatedDistance / 1000).toFixed(2)} km</p>
+                </div>
+            )}
+            {data.lastUpdate && (
+                <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Last Update
+                    </p>
+                    <p className="text-sm text-gray-700">
+                        {new Date(data.lastUpdate).toLocaleString()}
+                    </p>
+                </div>
+            )}
+        </>
+    );
+
     const renderDetails = () => {
         switch (type) {
             case 'office':
@@ -194,6 +337,8 @@ const LocationDetailModal = ({ data, type, onClose }) => {
                 return renderVehicleDetails();
             case 'driver':
                 return renderDriverDetails();
+            case 'trip':
+                return renderTripDetails();
             default:
                 return null;
         }
