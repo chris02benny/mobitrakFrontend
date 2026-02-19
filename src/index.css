@@ -7,3 +7,43 @@
     @apply antialiased text-gray-800 bg-white font-sans;
   }
 }
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Amber themed custom scrollbar */
+  .scrollbar-amber::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-amber::-webkit-scrollbar-track {
+    background: #fef3c7;
+    /* amber-100 */
+    border-radius: 9999px;
+  }
+
+  .scrollbar-amber::-webkit-scrollbar-thumb {
+    background: #f59e0b;
+    /* amber-400 */
+    border-radius: 9999px;
+    transition: background 0.2s;
+  }
+
+  .scrollbar-amber::-webkit-scrollbar-thumb:hover {
+    background: #d97706;
+    /* amber-600 */
+  }
+
+  /* Firefox */
+  .scrollbar-amber {
+    scrollbar-width: thin;
+    scrollbar-color: #f59e0b #fef3c7;
+  }
+}

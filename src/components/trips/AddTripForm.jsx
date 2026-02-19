@@ -7,7 +7,10 @@ import { vehicleService } from '../../services/vehicleService';
 import { hiringService } from '../../services/hiringService';
 import toast from 'react-hot-toast';
 import StepProgress from './StepProgress';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import TripRangeCalendar from '../common/TripRangeCalendar';
+import WheelTimePicker from '../common/WheelTimePicker';
 
 // Set your Mapbox access token here
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -73,7 +76,6 @@ const AddTripForm = ({ onSuccess }) => {
     useEffect(() => {
         fetchVehicles();
         fetchDrivers();
-        initializeMap();
     }, []);
 
     // Re-fetch drivers when dates change to update availability
@@ -104,15 +106,43 @@ const AddTripForm = ({ onSuccess }) => {
         }
     }, [formData.startDateTime, formData.endDateTime, routeData, formData.stops.length]);
 
-    // Initialize map when user navigates to step 3 (where map is displayed)
+    // Initialize / destroy map when entering / leaving step 4
     useEffect(() => {
-        if (currentStep === 3) {
-            // Small delay to ensure DOM is ready
+        if (currentStep === 4) {
+            // Destroy any stale map instance before re-creating
+            if (map.current) {
+                map.current.remove();
+                map.current = null;
+            }
+            // Small delay to ensure the DOM container is mounted
             setTimeout(() => {
                 initializeMap();
-            }, 100);
+            }, 150);
+        } else {
+            // Destroy the map when leaving step 4 so it re-initializes fresh on return
+            if (map.current) {
+                map.current.remove();
+                map.current = null;
+            }
         }
     }, [currentStep]);
+
+    // Auto-recalculate route when destinations change
+    useEffect(() => {
+        const { startDestination, endDestination } = formData;
+        if (
+            startDestination.location.coordinates.length > 0 &&
+            endDestination.location.coordinates.length > 0 &&
+            map.current
+        ) {
+            calculateRouteWith(formData);
+        }
+    }, [
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        formData.startDestination.location.coordinates.join(','),
+        formData.endDestination.location.coordinates.join(','),
+        formData.stops.map(s => s.location.coordinates.join(',')).join('|')
+    ]);
 
     const fetchVehicles = async () => {
         try {
@@ -314,6 +344,7 @@ const AddTripForm = ({ onSuccess }) => {
 
             // Use setTimeout to ensure state is updated before redrawing markers
             setTimeout(() => {
+                if (!map.current) return;
                 // Redraw markers for remaining locations using the updated data
                 if (field !== 'startDestination' && updated.startDestination.location.coordinates.length > 0) {
                     const marker = new mapboxgl.Marker({ color: '#10b981' })
@@ -395,46 +426,52 @@ const AddTripForm = ({ onSuccess }) => {
         markers.current.forEach(marker => marker.remove());
         markers.current = [];
 
-        // Add markers for start, end, and stops
+        // Add markers for start, end, and stops (only if map is ready)
         const updatedFormData = { ...formData, [field]: location };
 
-        if (updatedFormData.startDestination.location.coordinates.length > 0) {
-            const startMarker = new mapboxgl.Marker({ color: '#10b981' })
-                .setLngLat(updatedFormData.startDestination.location.coordinates)
-                .setPopup(new mapboxgl.Popup().setHTML(`<h3>${updatedFormData.startDestination.name}</h3><p>${updatedFormData.startDestination.address}</p>`))
-                .addTo(map.current);
-            markers.current.push(startMarker);
-        }
-
-        if (updatedFormData.endDestination.location.coordinates.length > 0) {
-            const endMarker = new mapboxgl.Marker({ color: '#ef4444' })
-                .setLngLat(updatedFormData.endDestination.location.coordinates)
-                .setPopup(new mapboxgl.Popup().setHTML(`<h3>${updatedFormData.endDestination.name}</h3><p>${updatedFormData.endDestination.address}</p>`))
-                .addTo(map.current);
-            markers.current.push(endMarker);
-        }
-
-        updatedFormData.stops.forEach((stop, index) => {
-            if (stop.location.coordinates.length > 0) {
-                const stopMarker = new mapboxgl.Marker({ color: '#f59e0b' })
-                    .setLngLat(stop.location.coordinates)
-                    .setPopup(new mapboxgl.Popup().setHTML(`<h3>Stop ${index + 1}</h3><p>${stop.address}</p>`))
+        if (map.current) {
+            if (updatedFormData.startDestination.location.coordinates.length > 0) {
+                const startMarker = new mapboxgl.Marker({ color: '#10b981' })
+                    .setLngLat(updatedFormData.startDestination.location.coordinates)
+                    .setPopup(new mapboxgl.Popup().setHTML(`<h3>${updatedFormData.startDestination.name}</h3><p>${updatedFormData.startDestination.address}</p>`))
                     .addTo(map.current);
-                markers.current.push(stopMarker);
+                markers.current.push(startMarker);
             }
-        });
 
-        // Fly to location
-        map.current.flyTo({
-            center: place.center,
-            zoom: 12
-        });
+            if (updatedFormData.endDestination.location.coordinates.length > 0) {
+                const endMarker = new mapboxgl.Marker({ color: '#ef4444' })
+                    .setLngLat(updatedFormData.endDestination.location.coordinates)
+                    .setPopup(new mapboxgl.Popup().setHTML(`<h3>${updatedFormData.endDestination.name}</h3><p>${updatedFormData.endDestination.address}</p>`))
+                    .addTo(map.current);
+                markers.current.push(endMarker);
+            }
 
-        // Calculate route if we have both start and end
-        if (field === 'endDestination' && formData.startDestination.location.coordinates.length > 0) {
-            calculateRoute();
-        } else if (field === 'startDestination' && formData.endDestination.location.coordinates.length > 0) {
-            calculateRoute();
+            updatedFormData.stops.forEach((stop, index) => {
+                if (stop.location.coordinates.length > 0) {
+                    const stopMarker = new mapboxgl.Marker({ color: '#f59e0b' })
+                        .setLngLat(stop.location.coordinates)
+                        .setPopup(new mapboxgl.Popup().setHTML(`<h3>Stop ${index + 1}</h3><p>${stop.address}</p>`))
+                        .addTo(map.current);
+                    markers.current.push(stopMarker);
+                }
+            });
+
+            // Fly to location
+            map.current.flyTo({
+                center: place.center,
+                zoom: 12
+            });
+        }
+
+        // Calculate route using fresh data (avoid stale closure from formData)
+        const freshStart = updatedFormData.startDestination;
+        const freshEnd = updatedFormData.endDestination;
+        if (
+            freshStart.location.coordinates.length > 0 &&
+            freshEnd.location.coordinates.length > 0 &&
+            map.current
+        ) {
+            calculateRouteWith(updatedFormData);
         }
     };
 
@@ -484,12 +521,14 @@ const AddTripForm = ({ onSuccess }) => {
         calculateRoute();
     };
 
-    const calculateRoute = async () => {
-        const { startDestination, endDestination, stops, tripType } = formData;
+    // Core route-drawing logic, accepts explicit data to avoid stale closures
+    const calculateRouteWith = async (data) => {
+        const { startDestination, endDestination, stops, tripType } = data;
 
         if (!startDestination.location.coordinates.length || !endDestination.location.coordinates.length) {
             return;
         }
+        if (!map.current) return;
 
         setCalculatingRoute(true);
 
@@ -500,45 +539,52 @@ const AddTripForm = ({ onSuccess }) => {
                 endDestination.location.coordinates
             ];
 
-            const data = await tripService.calculateRoute(coordinates, tripType);
-            setRouteData(data);
+            const routeResult = await tripService.calculateRoute(coordinates, tripType);
+            setRouteData(routeResult);
 
-            // Draw route on map
-            if (map.current.getSource('route')) {
-                map.current.removeLayer('route');
-                map.current.removeSource('route');
+            // Wait for map to be loaded before adding sources/layers
+            const drawRoute = () => {
+                if (!map.current) return;
+                if (map.current.getSource('route')) {
+                    map.current.removeLayer('route');
+                    map.current.removeSource('route');
+                }
+
+                map.current.addSource('route', {
+                    type: 'geojson',
+                    data: {
+                        type: 'Feature',
+                        properties: {},
+                        geometry: routeResult.route
+                    }
+                });
+
+                map.current.addLayer({
+                    id: 'route',
+                    type: 'line',
+                    source: 'route',
+                    layout: {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    paint: {
+                        'line-color': '#3b82f6',
+                        'line-width': 4
+                    }
+                });
+
+                // Fit bounds to show entire route
+                const coords = routeResult.route.coordinates;
+                const bounds = coords.reduce((b, coord) => b.extend(coord),
+                    new mapboxgl.LngLatBounds(coords[0], coords[0]));
+                map.current.fitBounds(bounds, { padding: 50 });
+            };
+
+            if (map.current.isStyleLoaded()) {
+                drawRoute();
+            } else {
+                map.current.once('load', drawRoute);
             }
-
-            map.current.addSource('route', {
-                type: 'geojson',
-                data: {
-                    type: 'Feature',
-                    properties: {},
-                    geometry: data.route
-                }
-            });
-
-            map.current.addLayer({
-                id: 'route',
-                type: 'line',
-                source: 'route',
-                layout: {
-                    'line-join': 'round',
-                    'line-cap': 'round'
-                },
-                paint: {
-                    'line-color': '#3b82f6',
-                    'line-width': 4
-                }
-            });
-
-            // Fit bounds to show entire route
-            const coords = data.route.coordinates;
-            const bounds = coords.reduce((bounds, coord) => {
-                return bounds.extend(coord);
-            }, new mapboxgl.LngLatBounds(coords[0], coords[0]));
-
-            map.current.fitBounds(bounds, { padding: 50 });
 
         } catch (error) {
             console.error('Route calculation error:', error);
@@ -547,6 +593,9 @@ const AddTripForm = ({ onSuccess }) => {
             setCalculatingRoute(false);
         }
     };
+
+    // Convenience wrapper that reads from current formData state
+    const calculateRoute = () => calculateRouteWith(formData);
 
     const validateForm = () => {
         let isValid = true;
@@ -762,13 +811,34 @@ const AddTripForm = ({ onSuccess }) => {
         return isValid;
     };
 
+    const validateField = (name, value) => {
+        let error = '';
+        if (name === 'customerName') {
+            if (!value || value.trim().length < 2) {
+                error = 'Customer name is required (minimum 2 characters)';
+            }
+        } else if (name === 'customerEmail') {
+            if (!value) {
+                error = 'Customer email is required';
+            } else if (!/^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) {
+                error = 'Please enter a valid email address';
+            }
+        } else if (name === 'customerContact') {
+            if (!value) {
+                error = 'Customer contact number is required';
+            } else if (!/^(\+91[\s-]?)?[6-9]\d{9}$/.test(value.replace(/[\s-]/g, ''))) {
+                error = 'Please enter a valid Indian mobile number';
+            }
+        }
+
+        setErrors(prev => ({ ...prev, [name]: error }));
+        return !error;
+    };
+
     const handleNextStep = () => {
         if (validateStep(currentStep)) {
             setCurrentStep(prev => prev + 1);
             window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else {
-            const errorCount = Object.keys(errors).length;
-            toast.error(`Please fix ${errorCount} error${errorCount > 1 ? 's' : ''} before continuing`);
         }
     };
 
@@ -1019,7 +1089,7 @@ const AddTripForm = ({ onSuccess }) => {
                             setErrors(prev => ({ ...prev, vehicleId: '' }));
                         }
                     }}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.vehicleId ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.vehicleId ? 'border-red-500' : 'border-gray-300'
                         }`}
                 >
                     <option value="">Choose a vehicle from the fleet</option>
@@ -1044,7 +1114,7 @@ const AddTripForm = ({ onSuccess }) => {
                             setErrors(prev => ({ ...prev, driverId: '' }));
                         }
                     }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 >
                     <option value="">Select an available driver</option>
                     {filteredDrivers.map(driver => (
@@ -1092,14 +1162,18 @@ const AddTripForm = ({ onSuccess }) => {
                         type="text"
                         value={formData.customerName}
                         onChange={(e) => {
-                            setFormData(prev => ({ ...prev, customerName: e.target.value }));
-                            if (errors.customerName) {
-                                setErrors(prev => ({ ...prev, customerName: '' }));
-                            }
+                            const value = e.target.value;
+                            setFormData(prev => ({ ...prev, customerName: value }));
+                            validateField('customerName', value);
                         }}
                         placeholder="e.g. Johnathan Smith"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.customerName ? 'border-red-500' : 'border-gray-300'}`}
                     />
+                </div>
+                <div className="h-5 relative">
+                    {errors.customerName && (
+                        <p className="absolute top-0 left-0 text-red-500 text-xs mt-1">{errors.customerName}</p>
+                    )}
                 </div>
             </div>
 
@@ -1115,12 +1189,18 @@ const AddTripForm = ({ onSuccess }) => {
                         type="email"
                         value={formData.customerEmail}
                         onChange={(e) => {
-                            const email = e.target.value;
-                            setFormData(prev => ({ ...prev, customerEmail: email }));
+                            const value = e.target.value;
+                            setFormData(prev => ({ ...prev, customerEmail: value }));
+                            validateField('customerEmail', value);
                         }}
                         placeholder="john.smith@example.com"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.customerEmail ? 'border-red-500' : 'border-gray-300'}`}
                     />
+                </div>
+                <div className="h-5 relative">
+                    {errors.customerEmail && (
+                        <p className="absolute top-0 left-0 text-red-500 text-xs mt-1">{errors.customerEmail}</p>
+                    )}
                 </div>
             </div>
 
@@ -1139,13 +1219,20 @@ const AddTripForm = ({ onSuccess }) => {
                             const value = e.target.value;
                             if (value === '' || /^[0-9+\s-]*$/.test(value)) {
                                 setFormData(prev => ({ ...prev, customerContact: value }));
+                                validateField('customerContact', value);
                             }
                         }}
                         placeholder="+91 9876543210"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.customerContact ? 'border-red-500' : 'border-gray-300'}`}
                     />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">We'll use this for SMS delivery updates.</p>
+                <div className="h-5 relative">
+                    {errors.customerContact ? (
+                        <p className="absolute top-0 left-0 text-red-500 text-xs mt-1">{errors.customerContact}</p>
+                    ) : (
+                        <p className="text-xs text-gray-500 mt-1">We'll use this for SMS delivery updates.</p>
+                    )}
+                </div>
             </div>
 
             {/* Navigation Buttons */}
@@ -1183,47 +1270,43 @@ const AddTripForm = ({ onSuccess }) => {
                         </div>
 
                         {/* Time Selection Card */}
-                        <div className="bg-amber-50 rounded-xl border border-amber-100 p-6 space-y-4">
+                        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
                             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                                <Clock size={20} className="text-amber-600" />
+                                <Clock size={20} className="text-gray-400" />
                                 Select Trip Times
                             </h3>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <div className="grid grid-cols-2 gap-8 pt-2">
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-medium text-gray-700 text-center">
                                         Start Time
                                     </label>
-                                    <input
-                                        type="time"
-                                        value={formData.startDateTime ? new Date(formData.startDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '09:00'}
-                                        onChange={(e) => {
-                                            const [hours, minutes] = e.target.value.split(':');
+                                    <WheelTimePicker
+                                        value={formData.startDateTime}
+                                        onChange={(time) => {
+                                            const [hours, minutes] = time.split(':');
                                             const newStart = new Date(formData.startDateTime || Date.now());
                                             newStart.setHours(parseInt(hours), parseInt(minutes));
                                             setFormData(prev => ({ ...prev, startDateTime: newStart.toISOString() }));
                                         }}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-medium text-gray-700 text-center">
                                         End Time
                                     </label>
-                                    <input
-                                        type="time"
-                                        value={formData.endDateTime ? new Date(formData.endDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '18:00'}
-                                        onChange={(e) => {
-                                            const [hours, minutes] = e.target.value.split(':');
+                                    <WheelTimePicker
+                                        value={formData.endDateTime}
+                                        onChange={(time) => {
+                                            const [hours, minutes] = time.split(':');
                                             const newEnd = new Date(formData.endDateTime || Date.now());
                                             newEnd.setHours(parseInt(hours), parseInt(minutes));
                                             setFormData(prev => ({ ...prev, endDateTime: newEnd.toISOString() }));
                                         }}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
                                     />
                                 </div>
                             </div>
-                            <p className="text-xs text-amber-700">Set the approximate pickup and drop-off times.</p>
+                            <p className="text-xs text-gray-500">Set the approximate pickup and drop-off times.</p>
                         </div>
                     </div>
 
@@ -1232,12 +1315,27 @@ const AddTripForm = ({ onSuccess }) => {
                         <TripRangeCalendar
                             startDateTime={formData.startDateTime}
                             endDateTime={formData.endDateTime}
-                            onChange={({ startDateTime, endDateTime }) => {
-                                setFormData(prev => ({
-                                    ...prev,
-                                    startDateTime,
-                                    endDateTime
-                                }));
+                            onChange={({ startDateTime: newStart, endDateTime: newEnd }) => {
+                                setFormData(prev => {
+                                    // Preserve the time components already set by the WheelTimePicker.
+                                    // The calendar fires with its own internal default times (09:00 / 18:00),
+                                    // so we strip those and graft in whatever hours/minutes are currently
+                                    // stored in formData.
+                                    const mergeTime = (newIso, existingIso) => {
+                                        const d = new Date(newIso);
+                                        if (existingIso) {
+                                            const existing = new Date(existingIso);
+                                            d.setHours(existing.getHours(), existing.getMinutes(), 0, 0);
+                                        }
+                                        return d.toISOString();
+                                    };
+
+                                    return {
+                                        ...prev,
+                                        startDateTime: mergeTime(newStart, prev.startDateTime),
+                                        endDateTime: mergeTime(newEnd, prev.endDateTime),
+                                    };
+                                });
                             }}
                             busyDates={blockedDateRanges}
                             minDate={new Date(Date.now() + 2 * 60 * 60 * 1000)}
@@ -1285,7 +1383,7 @@ const AddTripForm = ({ onSuccess }) => {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Left Column - Form Fields */}
                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 h-[650px] flex flex-col">
-                            <div className="flex-1 overflow-y-auto pr-2 min-h-0 space-y-6">
+                            <div className="flex-1 overflow-y-auto pr-2 min-h-0 space-y-6 scrollbar-amber">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Route & Pricing</h2>
                                     <p className="text-sm text-gray-600">Configure the trip route and set the pricing details for the customer.</p>
@@ -1313,7 +1411,7 @@ const AddTripForm = ({ onSuccess }) => {
                                                     }
                                                 }}
                                                 placeholder="0.00"
-                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                                             />
                                         </div>
 
@@ -1331,7 +1429,7 @@ const AddTripForm = ({ onSuccess }) => {
                                                     }
                                                 }}
                                                 placeholder="0.00"
-                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                                             />
                                         </div>
                                     </div>
@@ -1530,33 +1628,9 @@ const AddTripForm = ({ onSuccess }) => {
                         </div>
 
                         {/* Right Column - Map */}
-                        <div className="lg:sticky lg:top-6 h-[calc(100vh-250px)] min-h-[450px]">
+                        <div className="h-[650px]">
                             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden h-full shadow-sm">
-                                <div className="p-4 border-b border-gray-200 bg-gray-50">
-                                    <div className="flex items-center gap-2">
-                                        <Navigation2 size={20} className="text-amber-600" />
-                                        <h3 className="font-medium text-gray-900">Route Preview</h3>
-                                    </div>
-                                    {calculatingRoute && (
-                                        <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
-                                            <Loader2 className="animate-spin" size={16} />
-                                            <span>Calculating route...</span>
-                                        </div>
-                                    )}
-                                    {routeData && (
-                                        <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                                            <div className="bg-white rounded px-3 py-2">
-                                                <div className="text-xs text-gray-500">ESTIMATED DISTANCE</div>
-                                                <div className="font-semibold text-gray-900">{(routeData.distance * (isTwoWay ? 2 : 1)).toFixed(2)} km</div>
-                                            </div>
-                                            <div className="bg-white rounded px-3 py-2">
-                                                <div className="text-xs text-gray-500">ESTIMATED TIME</div>
-                                                <div className="font-semibold text-gray-900">{formatDuration(routeData.duration * (isTwoWay ? 2 : 1))}</div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                <div ref={mapContainer} className="h-[calc(100%-80px)]" />
+                                <div ref={mapContainer} className="h-full" />
                             </div>
                         </div>
                     </div>
@@ -1840,31 +1914,23 @@ const LocationPicker = ({ label, value, onSelect, error, required, placeholder }
     const [results, setResults] = useState([]);
     const [showResults, setShowResults] = useState(false);
     const [searching, setSearching] = useState(false);
+    // Debounce timer — only searches triggered by user typing use this
+    const searchTimer = useRef(null);
 
-    // Sync query with value when value changes externally
+    // When the external value changes (selection, clear, or navigating back to this step)
+    // always reset input and CLOSE the dropdown — do NOT search.
     useEffect(() => {
-        if (value !== undefined) {
-            setQuery(value || '');
-        }
+        setQuery(value || '');
+        setResults([]);
+        setShowResults(false);
     }, [value]);
 
-    useEffect(() => {
-        if (query.length >= 3) {
-            const timer = setTimeout(() => {
-                searchLocation();
-            }, 300);
-            return () => clearTimeout(timer);
-        } else {
-            setResults([]);
-            setShowResults(false);
-        }
-    }, [query]);
-
-    const searchLocation = async () => {
+    // Search using explicit text — called ONLY from the user onChange handler
+    const triggerSearch = async (text) => {
         setSearching(true);
         try {
             const response = await fetch(
-                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&country=IN&limit=5`
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?access_token=${mapboxgl.accessToken}&country=IN&limit=5`
             );
             const data = await response.json();
             setResults(data.features || []);
@@ -1876,13 +1942,33 @@ const LocationPicker = ({ label, value, onSelect, error, required, placeholder }
         }
     };
 
+    // Only user typing in the input triggers a search
+    const handleChange = (e) => {
+        const val = e.target.value;
+        setQuery(val);
+
+        if (!val) {
+            setResults([]);
+            setShowResults(false);
+            if (onSelect) onSelect(null);
+            return;
+        }
+
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+
+        if (val.length >= 3) {
+            searchTimer.current = setTimeout(() => triggerSearch(val), 300);
+        } else {
+            setResults([]);
+            setShowResults(false);
+        }
+    };
+
     const handleSelect = (place) => {
-        setQuery(place.place_name);
+        setQuery(place.text);
         setResults([]);
         setShowResults(false);
-        if (onSelect) {
-            onSelect(place);
-        }
+        if (onSelect) onSelect(place);
     };
 
     return (
@@ -1896,26 +1982,12 @@ const LocationPicker = ({ label, value, onSelect, error, required, placeholder }
                 <input
                     type="text"
                     value={query}
-                    onChange={(e) => {
-                        setQuery(e.target.value);
-                        if (!e.target.value) {
-                            setResults([]);
-                            setShowResults(false);
-                            if (onSelect) {
-                                onSelect(null);
-                            }
-                        }
-                    }}
-                    onFocus={() => {
-                        if (results.length > 0 && query.length >= 3) {
-                            setShowResults(true);
-                        }
-                    }}
+                    onChange={handleChange}
                     onBlur={() => {
                         setTimeout(() => setShowResults(false), 200);
                     }}
                     placeholder={placeholder || "Search location..."}
-                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 />
                 <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 {searching && (
@@ -1924,7 +1996,7 @@ const LocationPicker = ({ label, value, onSelect, error, required, placeholder }
             </div>
 
             {showResults && results.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto scrollbar-amber">
                     {results.map((place, index) => (
                         <button
                             key={index}
