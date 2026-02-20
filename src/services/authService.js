@@ -1,17 +1,11 @@
-const API_BASE_URL = 'http://localhost:5001/api/users';
+import api from './api';
 
 /**
- * Helper to handle API responses
+ * authService.js
+ * All user authentication API calls.
+ * Uses the centralized `api` client — base URL comes from VITE_API_URL.
+ * JWT is attached automatically by the api.js request interceptor.
  */
-const handleResponse = async (response) => {
-    const data = await response.json();
-    if (!response.ok) {
-        const error = new Error(data.message || 'Something went wrong');
-        error.status = response.status;
-        throw error;
-    }
-    return data;
-};
 
 export const authService = {
     /**
@@ -19,292 +13,122 @@ export const authService = {
      * @param {Object} userData - { companyName, email, password }
      */
     registerFleetManager: async (userData) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/register/fleetmanager`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(userData),
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.post('/api/users/register/fleetmanager', userData);
+        return response.data;
     },
-
-
 
     /**
      * Register a new driver
      * @param {Object} userData - { firstName, lastName, driverLicenseId, email, password }
      */
     registerDriver: async (userData) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/register/driver`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(userData),
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.post('/api/users/register/driver', userData);
+        return response.data;
     },
 
-
     login: async (credentials) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/login`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(credentials),
-            });
-            const data = await handleResponse(response);
-            // Store token and role for later use (simple localStorage implementation)
-            if (data.token) {
-                localStorage.setItem('authToken', data.token);
-                localStorage.setItem('userRole', data.role);
-                localStorage.setItem('userHasPassword', data.user?.hasPassword ? 'true' : 'false');
-            }
-            return data;
-        } catch (error) {
-            throw error;
+        const response = await api.post('/api/users/login', credentials);
+        const data = response.data;
+        if (data.token) {
+            localStorage.setItem('authToken', data.token);
+            localStorage.setItem('userRole', data.role);
+            localStorage.setItem('userHasPassword', data.user?.hasPassword ? 'true' : 'false');
         }
+        return data;
     },
 
     verifyOtp: async (email, otp) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/verify-otp`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, otp }),
-            });
-            const data = await handleResponse(response);
-            if (data.token) {
-                localStorage.setItem('authToken', data.token);
-                if (data.user?.role) {
-                    localStorage.setItem('userRole', data.user.role);
-                }
-                localStorage.setItem('userHasPassword', data.user?.hasPassword ? 'true' : 'false');
+        const response = await api.post('/api/users/verify-otp', { email, otp });
+        const data = response.data;
+        if (data.token) {
+            localStorage.setItem('authToken', data.token);
+            if (data.user?.role) {
+                localStorage.setItem('userRole', data.user.role);
             }
-            return data;
-        } catch (error) {
-            throw error;
+            localStorage.setItem('userHasPassword', data.user?.hasPassword ? 'true' : 'false');
         }
+        return data;
     },
 
     updatePassword: async (password) => {
-        try {
-            const token = localStorage.getItem('authToken');
-            const response = await fetch(`${API_BASE_URL}/update-password`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': token
-                },
-                body: JSON.stringify({ password }),
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.post('/api/users/update-password', { password });
+        return response.data;
     },
 
     completeProfile: async (data) => {
-        try {
-            const token = localStorage.getItem('authToken');
-            const response = await fetch(`${API_BASE_URL}/complete-profile`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': token
-                },
-                body: JSON.stringify(data),
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.post('/api/users/complete-profile', data);
+        return response.data;
     },
 
     getProfile: async () => {
-        try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('No authentication token found. Please login.');
-            }
-            const response = await fetch(`${API_BASE_URL}/me`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': token
-                },
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.get('/api/users/me');
+        return response.data;
     },
 
     /**
      * Upload profile image
-     * @param {File} imageFile - Profile image file
+     * @param {File} imageFile
      */
     uploadProfileImage: async (imageFile) => {
-        try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('No authentication token found. Please login.');
-            }
-
-            const formData = new FormData();
-            formData.append('profileImage', imageFile);
-
-            const response = await fetch(`${API_BASE_URL}/profile/image`, {
-                method: 'POST',
-                headers: {
-                    'x-auth-token': token
-                },
-                body: formData,
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const formData = new FormData();
+        formData.append('profileImage', imageFile);
+        const response = await api.post('/api/users/profile/image', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
     },
 
     /**
      * Upload driving license images
-     * @param {File} dlFront - Front image of DL
-     * @param {File} dlBack - Back image of DL
+     * @param {File} dlFront
+     * @param {File} dlBack
      */
     uploadDL: async (dlFront, dlBack) => {
-        try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('No authentication token found. Please login.');
-            }
-
-            const formData = new FormData();
-            formData.append('dlFront', dlFront);
-            formData.append('dlBack', dlBack);
-
-            const response = await fetch(`${API_BASE_URL}/upload-dl`, {
-                method: 'POST',
-                headers: {
-                    'x-auth-token': token
-                },
-                body: formData,
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const formData = new FormData();
+        formData.append('dlFront', dlFront);
+        formData.append('dlBack', dlBack);
+        const response = await api.post('/api/users/upload-dl', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
     },
 
     /**
      * Verify and save DL details after user confirmation
-     * @param {Object} dlDetails - Verified DL details object
+     * @param {Object} dlDetails
      */
     verifyDL: async (dlDetails) => {
-        try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('No authentication token found. Please login.');
-            }
-
-            const response = await fetch(`${API_BASE_URL}/verify-dl`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': token
-                },
-                body: JSON.stringify({ dlDetails }),
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.post('/api/users/verify-dl', { dlDetails });
+        return response.data;
     },
 
     /**
      * Upload RC book image
-     * @param {File} rcBook - RC Book image
+     * @param {File} rcBook
      */
     uploadRC: async (rcBook) => {
-        try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('No authentication token found. Please login.');
-            }
-
-            const formData = new FormData();
-            formData.append('rcBook', rcBook);
-
-            const response = await fetch(`${API_BASE_URL}/upload-rc`, {
-                method: 'POST',
-                headers: {
-                    'x-auth-token': token
-                },
-                body: formData,
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const formData = new FormData();
+        formData.append('rcBook', rcBook);
+        const response = await api.post('/api/users/upload-rc', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
     },
 
     /**
      * Request business verification (Fleet Manager only)
      */
     requestVerification: async () => {
-        try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('No authentication token found. Please login.');
-            }
-
-            const response = await fetch(`${API_BASE_URL}/request-verification`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': token
-                }
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.post('/api/users/request-verification');
+        return response.data;
     },
 
     /**
      * Get verification status (Fleet Manager only)
      */
     getVerificationStatus: async () => {
-        try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('No authentication token found. Please login.');
-            }
-
-            const response = await fetch(`${API_BASE_URL}/verification-status`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': token
-                }
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.get('/api/users/verification-status');
+        return response.data;
     },
 
     /**
@@ -318,61 +142,31 @@ export const authService = {
 
     /**
      * Send OTP for password reset
-     * @param {string} email - User's email address
+     * @param {string} email
      */
     forgotPassword: async (email) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/forgot-password`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email }),
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.post('/api/users/forgot-password', { email });
+        return response.data;
     },
 
     /**
      * Verify OTP for password reset
-     * @param {string} email - User's email address
-     * @param {string} otp - The OTP code
+     * @param {string} email
+     * @param {string} otp
      */
     verifyResetOtp: async (email, otp) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/verify-reset-otp`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, otp }),
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.post('/api/users/verify-reset-otp', { email, otp });
+        return response.data;
     },
 
     /**
      * Reset password after OTP verification
-     * @param {string} email - User's email address
-     * @param {string} otp - The verified OTP code
-     * @param {string} newPassword - The new password
+     * @param {string} email
+     * @param {string} otp
+     * @param {string} newPassword
      */
     resetPassword: async (email, otp, newPassword) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/reset-password`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, otp, newPassword }),
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
-    }
+        const response = await api.post('/api/users/reset-password', { email, otp, newPassword });
+        return response.data;
+    },
 };

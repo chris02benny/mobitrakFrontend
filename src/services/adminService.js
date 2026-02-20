@@ -1,43 +1,19 @@
-const API_BASE_URL = 'http://localhost:5001/api/admin';
+import api from './api';
 
 /**
- * Helper to handle API responses
+ * adminService.js
+ * All admin dashboard API calls.
+ * Uses the centralized `api` client — base URL comes from VITE_API_URL.
+ * JWT is attached automatically by the api.js request interceptor.
  */
-const handleResponse = async (response) => {
-    const data = await response.json();
-    if (!response.ok) {
-        const error = new Error(data.message || 'Something went wrong');
-        error.status = response.status;
-        throw error;
-    }
-    return data;
-};
-
-/**
- * Get auth headers
- */
-const getAuthHeaders = () => {
-    const token = localStorage.getItem('authToken');
-    return {
-        'Content-Type': 'application/json',
-        'x-auth-token': token
-    };
-};
 
 export const adminService = {
     /**
      * Get dashboard statistics
      */
     getStats: async () => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/stats`, {
-                method: 'GET',
-                headers: getAuthHeaders()
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.get('/api/admin/stats');
+        return response.data;
     },
 
     /**
@@ -45,16 +21,8 @@ export const adminService = {
      * @param {Object} params - { role, page, limit, search }
      */
     getUsers: async (params = {}) => {
-        try {
-            const queryString = new URLSearchParams(params).toString();
-            const response = await fetch(`${API_BASE_URL}/users?${queryString}`, {
-                method: 'GET',
-                headers: getAuthHeaders()
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.get('/api/admin/users', { params });
+        return response.data;
     },
 
     /**
@@ -62,16 +30,8 @@ export const adminService = {
      * @param {Object} params - { page, limit, search, verificationStatus }
      */
     getBusinesses: async (params = {}) => {
-        try {
-            const queryString = new URLSearchParams(params).toString();
-            const response = await fetch(`${API_BASE_URL}/businesses?${queryString}`, {
-                method: 'GET',
-                headers: getAuthHeaders()
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.get('/api/admin/businesses', { params });
+        return response.data;
     },
 
     /**
@@ -79,32 +39,17 @@ export const adminService = {
      * @param {Object} params - { page, limit, search, profileComplete }
      */
     getDrivers: async (params = {}) => {
-        try {
-            const queryString = new URLSearchParams(params).toString();
-            const response = await fetch(`${API_BASE_URL}/drivers?${queryString}`, {
-                method: 'GET',
-                headers: getAuthHeaders()
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.get('/api/admin/drivers', { params });
+        return response.data;
     },
 
     /**
      * Get single user details
-     * @param {string} userId - User ID
+     * @param {string} userId
      */
     getUser: async (userId) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/user/${userId}`, {
-                method: 'GET',
-                headers: getAuthHeaders()
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.get(`/api/admin/user/${userId}`);
+        return response.data;
     },
 
     /**
@@ -112,52 +57,29 @@ export const adminService = {
      * @param {Object} params - { page, limit }
      */
     getVerificationRequests: async (params = {}) => {
-        try {
-            const queryString = new URLSearchParams(params).toString();
-            const response = await fetch(`${API_BASE_URL}/verification-requests?${queryString}`, {
-                method: 'GET',
-                headers: getAuthHeaders()
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.get('/api/admin/verification-requests', { params });
+        return response.data;
     },
 
     /**
      * Approve or reject business verification
-     * @param {string} userId - Business user ID
+     * @param {string} userId
      * @param {string} action - 'approve' or 'reject'
-     * @param {string} notes - Optional notes
+     * @param {string} notes
      */
     verifyBusiness: async (userId, action, notes = '') => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/verify-business/${userId}`, {
-                method: 'PUT',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ action, notes })
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
+        const response = await api.put(`/api/admin/verify-business/${userId}`, { action, notes });
+        return response.data;
     },
 
     /**
      * Get vehicles for a specific business
-     * @param {string} businessId - Business user ID
+     * @param {string} businessId
      */
     getBusinessVehicles: async (businessId) => {
-        try {
-            const response = await fetch(`http://localhost:5002/api/vehicles/admin/business/${businessId}`, {
-                method: 'GET',
-                headers: getAuthHeaders()
-            });
-            return handleResponse(response);
-        } catch (error) {
-            throw error;
-        }
-    }
+        const response = await api.get(`/api/vehicles/admin/business/${businessId}`);
+        return response.data;
+    },
 };
 
 export default adminService;
