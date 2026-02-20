@@ -3,7 +3,7 @@ import LiveFleetMap from '../../components/dashboard/LiveFleetMap';
 
 const LiveFleetMapPage = () => {
     return (
-        <div className="h-full p-6">
+        <div className="h-full">
             <LiveFleetMap isFullPage={true} />
         </div>
     );

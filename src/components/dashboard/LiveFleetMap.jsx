@@ -99,7 +99,7 @@ const LiveFleetMap = ({ isFullPage = false }) => {
     // Handle real-time location updates
     const handleLocationUpdate = (locationData) => {
         const { vehicleId, location, tripId } = locationData;
-        
+
         setAllMarkers(prevMarkers => {
             const updatedMarkers = [...prevMarkers];
             const vehicleMarkerIndex = updatedMarkers.findIndex(
@@ -138,16 +138,16 @@ const LiveFleetMap = ({ isFullPage = false }) => {
     // Handle real-time office location updates
     const handleOfficeLocationUpdate = (data) => {
         const { officeLocation, companyName } = data;
-        
+
         if (officeLocation?.coordinates?.length === 2) {
             const [lng, lat] = officeLocation.coordinates;
-            
+
             setOfficeLocation({ lng, lat });
             setMapCenter({ lng, lat, zoom: 12 });
-            
+
             setAllMarkers(prevMarkers => {
                 const updatedMarkers = [...prevMarkers];
-                
+
                 const officeMarkerIndex = updatedMarkers.findIndex(m => m.id === 'office');
                 if (officeMarkerIndex !== -1) {
                     updatedMarkers[officeMarkerIndex] = {
@@ -163,7 +163,7 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                         lat,
                         type: 'building',
                         label: companyName || 'Office Location',
-                        data: { 
+                        data: {
                             name: companyName || 'Office Location',
                             address: officeLocation.address || 'Office Address',
                             phone: data.phone,
@@ -172,31 +172,31 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                         }
                     });
                 }
-                
-                const vehicleMarkers = updatedMarkers.filter(m => 
+
+                const vehicleMarkers = updatedMarkers.filter(m =>
                     m.type === 'vehicle' && m.id.startsWith('vehicle-') && !m.data.tripId
                 );
-                const driverMarkers = updatedMarkers.filter(m => 
+                const driverMarkers = updatedMarkers.filter(m =>
                     m.type === 'driver' && m.id.startsWith('driver-')
                 );
-                
+
                 vehicleMarkers.forEach((marker, index) => {
                     const offset = 0.001;
                     const angle = (index * 2 * Math.PI) / vehicleMarkers.length;
                     marker.lng = lng + offset * Math.cos(angle);
                     marker.lat = lat + offset * Math.sin(angle);
                 });
-                
+
                 driverMarkers.forEach((marker, index) => {
                     const offset = 0.0015;
                     const angle = (index * 2 * Math.PI) / driverMarkers.length + Math.PI;
                     marker.lng = lng + offset * Math.cos(angle);
                     marker.lat = lat + offset * Math.sin(angle);
                 });
-                
+
                 return updatedMarkers;
             });
-            
+
             setProfileData(prev => ({
                 ...prev,
                 officeLocation,
@@ -217,17 +217,17 @@ const LiveFleetMap = ({ isFullPage = false }) => {
     const applyFilters = () => {
         // If no filters are selected, show all markers
         const anyFilterActive = filters.office || filters.vehicles || filters.drivers || filters.trips;
-        
+
         let filteredMarkers = allMarkers.filter(marker => {
             if (!anyFilterActive) return true; // Show all when nothing is selected
-            
+
             if (marker.type === 'building' || marker.type === 'office') return filters.office;
             if (marker.type === 'vehicle') return filters.vehicles;
             if (marker.type === 'driver') return filters.drivers;
             if (marker.type === 'trip') return filters.trips;
             return false;
         });
-        
+
         // Apply search filter only if search query exists AND it's not a filter category name
         const filterCategoryNames = ['Office', 'Vehicles', 'Drivers', 'Trips'];
         if (searchQuery.trim() && !filterCategoryNames.includes(searchQuery)) {
@@ -244,7 +244,7 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                 );
             });
         }
-        
+
         setMarkers(filteredMarkers);
     };
 
@@ -256,7 +256,7 @@ const LiveFleetMap = ({ isFullPage = false }) => {
             drivers: 'Drivers',
             trips: 'Trips'
         };
-        
+
         setFilters({
             office: filterType === 'office',
             vehicles: filterType === 'vehicles',
@@ -438,16 +438,15 @@ const LiveFleetMap = ({ isFullPage = false }) => {
     };
 
     return (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col h-full">
-            {/* Card Header */}
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <MapPin className="w-5 h-5 text-amber-500" />
-                    <span className="font-semibold text-gray-900">Live Fleet Map</span>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                    {!isFullPage && (
+        <div className={isFullPage ? "flex flex-col h-full overflow-hidden" : "bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col h-full"}>
+            {/* Card Header - only shown in widget/dashboard mode */}
+            {!isFullPage && (
+                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <MapPin className="w-5 h-5 text-amber-500" />
+                        <span className="font-semibold text-gray-900">Live Fleet Map</span>
+                    </div>
+                    <div className="flex items-center gap-2">
                         <button
                             onClick={handleExpandView}
                             className="w-8 h-8 bg-amber-500 text-white rounded-lg flex items-center justify-center hover:bg-amber-600 transition-colors"
@@ -455,9 +454,9 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                         >
                             <ArrowRight size={18} />
                         </button>
-                    )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Map Content Area */}
             <div className="flex-1 relative bg-slate-100 overflow-hidden">
@@ -499,9 +498,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                     </div>
                 ) : (
                     <>
-                        <div className={`absolute inset-0 transition-all duration-300 ${
-                            showLeftModal ? 'left-[25rem]' : 'left-0'
-                        }`}>
+                        <div className={`absolute inset-0 transition-all duration-300 ${showLeftModal ? 'left-[25rem]' : 'left-0'
+                            }`}>
                             <MapView
                                 center={mapCenter}
                                 markers={markers}
@@ -536,44 +534,40 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                             {/* Pill-shaped Filter Buttons - Always Visible */}
                             <button
                                 onClick={() => toggleFilter('office')}
-                                className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${
-                                    filters.office
+                                className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${filters.office
                                         ? 'bg-amber-500 text-white border-amber-600'
                                         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                                }`}
+                                    }`}
                             >
                                 <Building2 className="w-4 h-4" />
                                 Office
                             </button>
                             <button
                                 onClick={() => toggleFilter('vehicles')}
-                                className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${
-                                    filters.vehicles
+                                className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${filters.vehicles
                                         ? 'bg-blue-500 text-white border-blue-600'
                                         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                                }`}
+                                    }`}
                             >
                                 <Truck className="w-4 h-4" />
                                 Vehicles
                             </button>
                             <button
                                 onClick={() => toggleFilter('drivers')}
-                                className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${
-                                    filters.drivers
+                                className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${filters.drivers
                                         ? 'bg-green-500 text-white border-green-600'
                                         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                                }`}
+                                    }`}
                             >
                                 <User className="w-4 h-4" />
                                 Drivers
                             </button>
                             <button
                                 onClick={() => toggleFilter('trips')}
-                                className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${
-                                    filters.trips
+                                className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${filters.trips
                                         ? 'bg-purple-500 text-white border-purple-600'
                                         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                                }`}
+                                    }`}
                             >
                                 <Navigation className="w-4 h-4" />
                                 Trips
@@ -600,7 +594,7 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                             const isVehicle = marker.type === 'vehicle';
                                             const isDriver = marker.type === 'driver';
                                             const isTrip = marker.type === 'trip';
-                                            
+
                                             return (
                                                 <div
                                                     key={index}
@@ -615,7 +609,7 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                                         {isVehicle && <Truck className="w-8 h-8 text-blue-500 flex-shrink-0" />}
                                                         {isDriver && <User className="w-8 h-8 text-green-500 flex-shrink-0" />}
                                                         {isTrip && <Navigation className="w-8 h-8 text-purple-500 flex-shrink-0" />}
-                                                        
+
                                                         <div className="flex-1 min-w-0">
                                                             <h3 className="font-semibold text-gray-900 truncate">{marker.label}</h3>
                                                             {isOffice && marker.data && (
@@ -687,31 +681,29 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                             const isVehicle = item.type === 'vehicle';
                                             const isDriver = item.type === 'driver';
                                             const isTrip = item.type === 'trip';
-                                            
+
                                             return (
                                                 <div
                                                     key={index}
                                                     onClick={() => handleItemClick(item)}
-                                                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
-                                                        selectedItemDetails === item ? 'bg-blue-50' : ''
-                                                    }`}
+                                                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${selectedItemDetails === item ? 'bg-blue-50' : ''
+                                                        }`}
                                                 >
                                                     <div className="flex items-start gap-3">
                                                         {isOffice && <Building2 className="w-5 h-5 text-amber-500 flex-shrink-0 mt-1" />}
                                                         {isVehicle && <Truck className="w-5 h-5 text-blue-500 flex-shrink-0 mt-1" />}
                                                         {isDriver && <User className="w-5 h-5 text-green-500 flex-shrink-0 mt-1" />}
                                                         {isTrip && <Navigation className="w-5 h-5 text-purple-500 flex-shrink-0 mt-1" />}
-                                                        
+
                                                         <div className="flex-1 min-w-0">
                                                             <h4 className="font-medium text-gray-900 truncate">{item.label}</h4>
                                                             {isVehicle && item.data && (
                                                                 <div className="text-sm text-gray-600 mt-1">
                                                                     <p>{item.data.regnNo}</p>
-                                                                    <p className={`inline-block px-2 py-0.5 rounded-full text-xs mt-1 ${
-                                                                        item.data.status === 'Available' 
-                                                                            ? 'bg-green-100 text-green-700' 
+                                                                    <p className={`inline-block px-2 py-0.5 rounded-full text-xs mt-1 ${item.data.status === 'Available'
+                                                                            ? 'bg-green-100 text-green-700'
                                                                             : 'bg-red-100 text-red-700'
-                                                                    }`}>
+                                                                        }`}>
                                                                         {item.data.status}
                                                                     </p>
                                                                 </div>
@@ -799,9 +791,9 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                             <div className="p-6">
                                                 <h2 className="text-2xl font-bold text-gray-900 mb-1">{selectedItemDetails.label}</h2>
                                                 <p className="text-sm text-gray-600 mb-4">Vehicle • {selectedItemDetails.data.regnNo}</p>
-                                                
+
                                                 <div className="flex gap-2 mb-6">
-                                                    <button 
+                                                    <button
                                                         onClick={() => navigate(`/business/vehicles`)}
                                                         className="flex-1 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
                                                     >
@@ -816,11 +808,10 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                                 <div className="space-y-3 border-t border-gray-200 pt-4">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-sm text-gray-600">Status</span>
-                                                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                                            selectedItemDetails.data.status === 'Available' 
-                                                                ? 'bg-green-100 text-green-700' 
+                                                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${selectedItemDetails.data.status === 'Available'
+                                                                ? 'bg-green-100 text-green-700'
                                                                 : 'bg-red-100 text-red-700'
-                                                        }`}>
+                                                            }`}>
                                                             {selectedItemDetails.data.status}
                                                         </span>
                                                     </div>
@@ -858,9 +849,9 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                             <div className="p-6">
                                                 <h2 className="text-2xl font-bold text-gray-900 mb-1">{selectedItemDetails.label}</h2>
                                                 <p className="text-sm text-gray-600 mb-4">Driver • {selectedItemDetails.data.dlNumber}</p>
-                                                
+
                                                 <div className="flex gap-2 mb-6">
-                                                    <button 
+                                                    <button
                                                         onClick={() => navigate(`/business/drivers`)}
                                                         className="flex-1 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
                                                     >
@@ -907,9 +898,9 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                             <div className="p-6">
                                                 <h2 className="text-2xl font-bold text-gray-900 mb-1">{selectedItemDetails.label}</h2>
                                                 <p className="text-sm text-gray-600 mb-4">Active Trip</p>
-                                                
+
                                                 <div className="flex gap-2 mb-6">
-                                                    <button 
+                                                    <button
                                                         onClick={() => navigate(`/business/trips`)}
                                                         className="flex-1 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2"
                                                     >
@@ -943,11 +934,10 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                                     {selectedItemDetails.data.status && (
                                                         <div className="flex items-center justify-between pt-2">
                                                             <span className="text-sm text-gray-600">Status</span>
-                                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                                                selectedItemDetails.data.status === 'In Progress' 
-                                                                    ? 'bg-blue-100 text-blue-700' 
+                                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${selectedItemDetails.data.status === 'In Progress'
+                                                                    ? 'bg-blue-100 text-blue-700'
                                                                     : 'bg-gray-100 text-gray-700'
-                                                            }`}>
+                                                                }`}>
                                                                 {selectedItemDetails.data.status}
                                                             </span>
                                                         </div>
