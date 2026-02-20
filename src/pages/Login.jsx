@@ -93,6 +93,7 @@ const Login = () => {
                             placeholder="name@company.com"
                             required
                             icon={Mail}
+                            autoComplete="username"
                         />
 
                         <div>
@@ -104,6 +105,7 @@ const Login = () => {
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
                                 required
+                                autoComplete="current-password"
                             />
                             <div className="flex items-center justify-between mt-4">
                                 <label className="flex items-center gap-2 cursor-pointer">

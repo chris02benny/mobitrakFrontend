@@ -15,8 +15,14 @@
 
 import axios from 'axios';
 
+// Fallback to the live AWS API Gateway URL if VITE_API_URL is not set.
+// This prevents silent 404s when the env var is missing from Vercel.
+const BASE_URL =
+    import.meta.env.VITE_API_URL ||
+    'https://qyf9xrigzg.execute-api.ap-south-1.amazonaws.com';
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
+    baseURL: BASE_URL,
     withCredentials: true,
     headers: {
         'Content-Type': 'application/json',

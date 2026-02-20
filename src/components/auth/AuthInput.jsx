@@ -10,7 +10,8 @@ const AuthInput = ({
     placeholder,
     required = false,
     className = "",
-    icon: Icon
+    icon: Icon,
+    autoComplete
 }) => {
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === "password";
@@ -28,6 +29,7 @@ const AuthInput = ({
                     onChange={onChange}
                     placeholder={placeholder}
                     required={required}
+                    autoComplete={autoComplete}
                     className={`h-11 w-full rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition-all focus:border-primary focus:ring-2 focus:ring-accent ${Icon ? 'pr-10' : ''}`}
                 />
 
