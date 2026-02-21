@@ -12,9 +12,12 @@ const ProtectedRoute = () => {
 
     // Check profile completion status
     useEffect(() => {
+        let isMounted = true;
         const checkProfileCompletion = async () => {
             try {
                 const { user } = await authService.getProfile();
+                if (!isMounted) return;
+
                 setUserRole(user.role);
                 setProfileComplete(user.isProfileComplete);
                 setLoading(false);
@@ -30,7 +33,7 @@ const ProtectedRoute = () => {
                 }
             } catch (error) {
                 console.error('Error checking profile:', error);
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
 
@@ -39,7 +42,11 @@ const ProtectedRoute = () => {
         } else {
             setLoading(false);
         }
-    }, [authToken, navigate, location.pathname]);
+
+        return () => {
+            isMounted = false;
+        };
+    }, [authToken, navigate]); // Removed location.pathname to avoid re-fetching on every route change
 
     // Monitor authentication state to prevent back button access after logout
     useEffect(() => {

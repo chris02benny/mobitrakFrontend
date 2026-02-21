@@ -36,7 +36,9 @@ api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('authToken');
         if (token) {
+            // Support both standard and custom headers for max compatibility
             config.headers['x-auth-token'] = token;
+            config.headers['Authorization'] = `Bearer ${token}`;
         }
         return config;
     },

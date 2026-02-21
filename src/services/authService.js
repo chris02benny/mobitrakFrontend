@@ -31,8 +31,13 @@ export const authService = {
         const data = response.data;
         if (data.token) {
             localStorage.setItem('authToken', data.token);
-            localStorage.setItem('userRole', data.role);
-            localStorage.setItem('userHasPassword', data.user?.hasPassword ? 'true' : 'false');
+            // Fix: role is nested inside the user object
+            const role = data.user?.role || data.role;
+            if (role) localStorage.setItem('userRole', role);
+
+            // Fix: hasPassword is also nested
+            const hasPassword = data.user?.hasPassword !== undefined ? data.user.hasPassword : !!data.user?.password;
+            localStorage.setItem('userHasPassword', hasPassword ? 'true' : 'false');
         }
         return data;
     },
@@ -42,10 +47,11 @@ export const authService = {
         const data = response.data;
         if (data.token) {
             localStorage.setItem('authToken', data.token);
-            if (data.user?.role) {
-                localStorage.setItem('userRole', data.user.role);
-            }
-            localStorage.setItem('userHasPassword', data.user?.hasPassword ? 'true' : 'false');
+            const role = data.user?.role || data.role;
+            if (role) localStorage.setItem('userRole', role);
+
+            const hasPassword = data.user?.hasPassword !== undefined ? data.user.hasPassword : !!data.user?.password;
+            localStorage.setItem('userHasPassword', hasPassword ? 'true' : 'false');
         }
         return data;
     },
