@@ -50,14 +50,21 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // Token is expired or invalid — clear auth state and redirect
+            // Token is expired, invalid, or signed with a missing secret on the backend.
+            // Clear auth state to prevent further unauthorized requests.
             localStorage.removeItem('authToken');
             localStorage.removeItem('userRole');
             localStorage.removeItem('userHasPassword');
-            // Only redirect if not already on login/auth pages to avoid loops
-            if (!window.location.pathname.startsWith('/login') &&
-                !window.location.pathname.startsWith('/register') &&
-                !window.location.pathname.startsWith('/forgot-password')) {
+
+            const currentPath = window.location.pathname;
+            const isAuthPage = currentPath.startsWith('/login') ||
+                currentPath.startsWith('/register') ||
+                currentPath.startsWith('/signup') ||
+                currentPath.startsWith('/forgot-password');
+
+            // Only redirect if not already on login/auth pages to avoid infinite loops
+            if (!isAuthPage) {
+                console.warn('[API] session expired or invalid. Redirecting to login.');
                 window.location.href = '/login';
             }
         }
