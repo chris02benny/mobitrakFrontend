@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Truck, Map, Users, Wrench, BarChart2, Settings, LogOut, User, Route, Car, Briefcase, Building2, ShieldCheck, UserPlus, Navigation } from 'lucide-react';
-import axios from 'axios';
+import api from '../../services/api';
 
 const Sidebar = ({ onLogout }) => {
     const [userData, setUserData] = useState(null);
@@ -25,10 +25,7 @@ const Sidebar = ({ onLogout }) => {
 
     const fetchUserData = async () => {
         try {
-            const token = localStorage.getItem('authToken');
-            const response = await axios.get('http://localhost:5001/api/users/me', {
-                headers: { 'x-auth-token': token }
-            });
+            const response = await api.get('/api/users/me');
             setUserData(response.data.user);
         } catch (err) {
             console.error('Error fetching user data:', err);
@@ -147,7 +144,7 @@ const Sidebar = ({ onLogout }) => {
                         )}
                         {/* Verified Badge for Business */}
                         {userData?.isVerifiedBusiness && (
-                            <div 
+                            <div
                                 className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5"
                                 title="Mobitrak Verified Business"
                             >

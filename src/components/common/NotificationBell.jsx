@@ -28,8 +28,9 @@ const NotificationBell = () => {
 
         try {
             const userId = JSON.parse(atob(token.split('.')[1])).userId;
+            const API_URL = import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
 
-            const socket = io('http://localhost:5001', {
+            const socket = io(API_URL, {
                 transports: ['polling', 'websocket'],
                 reconnection: true,
                 reconnectionAttempts: 5,
@@ -234,9 +235,8 @@ const NotificationBell = () => {
                             notifications.map((notification) => (
                                 <div
                                     key={notification._id}
-                                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                                        !notification.isRead ? 'bg-amber-50' : ''
-                                    }`}
+                                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${!notification.isRead ? 'bg-amber-50' : ''
+                                        }`}
                                 >
                                     <div className="flex items-start gap-3">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${getNotificationColor(notification.type)}`}>

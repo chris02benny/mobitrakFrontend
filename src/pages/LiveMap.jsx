@@ -30,7 +30,7 @@ const LiveMap = () => {
 
     // Initialize Socket.IO connection to trip-service
     useEffect(() => {
-        const TRIP_SERVICE_URL = import.meta.env.VITE_TRIP_SERVICE_URL || 'http://localhost:5004';
+        const TRIP_SERVICE_URL = import.meta.env.VITE_TRIP_SERVICE_URL || import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
         const newSocket = io(TRIP_SERVICE_URL, {
             transports: ['websocket', 'polling'],
             reconnection: true,
@@ -65,7 +65,7 @@ const LiveMap = () => {
 
     // Initialize Socket.IO connection to user-service for profile updates
     useEffect(() => {
-        const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || 'http://localhost:5001';
+        const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
         const newUserSocket = io(USER_SERVICE_URL, {
             transports: ['websocket', 'polling'],
             reconnection: true,
@@ -101,7 +101,7 @@ const LiveMap = () => {
     // Handle real-time location updates
     const handleLocationUpdate = (locationData) => {
         const { vehicleId, location, tripId } = locationData;
-        
+
         setAllMarkers(prevMarkers => {
             const updatedMarkers = [...prevMarkers];
             const vehicleMarkerIndex = updatedMarkers.findIndex(
@@ -142,20 +142,20 @@ const LiveMap = () => {
     // Handle real-time office location updates
     const handleOfficeLocationUpdate = (data) => {
         const { officeLocation, companyName } = data;
-        
+
         if (officeLocation?.coordinates?.length === 2) {
             const [lng, lat] = officeLocation.coordinates;
-            
+
             // Update office location state
             setOfficeLocation({ lng, lat });
-            
+
             // Update map center to new office location
             setMapCenter({ lng, lat, zoom: 12 });
-            
+
             // Update markers - replace office marker and reposition vehicles/drivers
             setAllMarkers(prevMarkers => {
                 const updatedMarkers = [...prevMarkers];
-                
+
                 // Find and update office marker
                 const officeMarkerIndex = updatedMarkers.findIndex(m => m.id === 'office');
                 if (officeMarkerIndex !== -1) {
@@ -176,53 +176,53 @@ const LiveMap = () => {
                         data: { officeLocation, companyName }
                     });
                 }
-                
+
                 // Reposition idle vehicles and drivers around new office location
-                const vehicleMarkers = updatedMarkers.filter(m => 
+                const vehicleMarkers = updatedMarkers.filter(m =>
                     m.type === 'vehicle' && m.id.startsWith('vehicle-') && !m.data.tripId
                 );
-                const driverMarkers = updatedMarkers.filter(m => 
+                const driverMarkers = updatedMarkers.filter(m =>
                     m.type === 'driver' && m.id.startsWith('driver-')
                 );
-                
+
                 vehicleMarkers.forEach((marker, index) => {
                     const offset = 0.001;
                     const angle = (index * 2 * Math.PI) / vehicleMarkers.length;
                     marker.lng = lng + offset * Math.cos(angle);
                     marker.lat = lat + offset * Math.sin(angle);
                 });
-                
+
                 driverMarkers.forEach((marker, index) => {
                     const offset = 0.0015;
                     const angle = (index * 2 * Math.PI) / driverMarkers.length + Math.PI;
                     marker.lng = lng + offset * Math.cos(angle);
                     marker.lat = lat + offset * Math.sin(angle);
                 });
-                
+
                 return updatedMarkers;
             });
-            
+
             // Update profile data
             setProfileData(prev => ({
                 ...prev,
                 officeLocation,
                 companyName
             }));
-            
+
             console.log('Office location updated on map:', { lng, lat });
         }
     };
 
     useEffect(() => {
         fetchMapData();
-        
+
         // Start fetching live tracking positions
         fetchLiveTrackingPositions();
-        
+
         // Set up interval to fetch positions every 5 seconds
         const interval = setInterval(fetchLiveTrackingPositions, 5000);
         setTraccarInterval(interval);
-        
+
         return () => {
             if (interval) clearInterval(interval);
         };
@@ -246,17 +246,17 @@ const LiveMap = () => {
         try {
             // Get vehicles with tracking credentials
             const trackedVehicles = await vehicleService.getVehiclesWithTracking();
-            
+
             if (trackedVehicles.length === 0) {
                 console.log('No vehicles with tracking credentials found');
                 return;
             }
-            
+
             console.log(`Fetching positions for ${trackedVehicles.length} tracked vehicle(s)`);
             const newPositions = {};
             let successCount = 0;
             let failCount = 0;
-            
+
             // Fetch positions for each tracked vehicle
             for (const vehicle of trackedVehicles) {
                 if (vehicle.trackingCredentials) {
@@ -265,11 +265,11 @@ const LiveMap = () => {
                             vehicle.trackingCredentials.email,
                             vehicle.trackingCredentials.password
                         );
-                        
+
                         if (positions && positions.length > 0) {
                             // Get the latest position (first in array is most recent)
                             const latestPosition = positions[0];
-                            
+
                             // Validate coordinates
                             if (latestPosition.latitude && latestPosition.longitude) {
                                 newPositions[vehicle._id] = {
@@ -300,15 +300,15 @@ const LiveMap = () => {
                     }
                 }
             }
-            
+
             console.log(`Position fetch complete: ${successCount} successful, ${failCount} failed`);
-            
+
             if (Object.keys(newPositions).length > 0) {
                 setTraccarPositions(newPositions);
                 // Update markers with live tracking positions
                 updateMarkersWithTraccarData(newPositions);
             }
-            
+
         } catch (err) {
             console.error('Error fetching live tracking positions:', err);
         }
@@ -320,12 +320,12 @@ const LiveMap = () => {
         }
 
         console.log('🚗 Updating markers with Traccar data:', Object.keys(positions).length, 'vehicles');
-        
+
         setAllMarkers(prevMarkers => {
             // Create a completely new array to ensure React detects the change
             const updatedMarkers = prevMarkers.map(marker => ({ ...marker }));
             let hasUpdates = false;
-            
+
             Object.entries(positions).forEach(([vehicleId, position]) => {
                 // Validate position data
                 if (!position.latitude || !position.longitude) {
@@ -336,12 +336,12 @@ const LiveMap = () => {
                 const markerIndex = updatedMarkers.findIndex(
                     marker => marker.id === `vehicle-${vehicleId}`
                 );
-                
+
                 if (markerIndex !== -1) {
                     // Check if position has actually changed
                     const oldMarker = updatedMarkers[markerIndex];
-                    const positionChanged = 
-                        Math.abs(oldMarker.lng - position.longitude) > 0.00001 || 
+                    const positionChanged =
+                        Math.abs(oldMarker.lng - position.longitude) > 0.00001 ||
                         Math.abs(oldMarker.lat - position.latitude) > 0.00001;
 
                     console.log(`📍 Vehicle ${vehicleId}: Old=[${oldMarker.lat.toFixed(6)}, ${oldMarker.lng.toFixed(6)}], New=[${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}], Changed=${positionChanged}`);
@@ -395,7 +395,7 @@ const LiveMap = () => {
                     }
                 }
             });
-            
+
             if (hasUpdates) {
                 console.log('✅ Returning updated markers array, total:', updatedMarkers.length);
                 // Increment map update key to force re-render
@@ -403,7 +403,7 @@ const LiveMap = () => {
                 // Return the new array to trigger state update
                 return updatedMarkers;
             }
-            
+
             // Return prevMarkers if no updates to avoid unnecessary re-render
             return prevMarkers;
         });
@@ -591,28 +591,25 @@ const LiveMap = () => {
                         <MapPin className="w-5 h-5 text-amber-500" />
                         <span className="font-semibold text-gray-900">Live Fleet Map</span>
                     </div>
-                    
+
                     {/* Legend Filters - Horizontal Layout */}
                     <div className="flex items-center gap-2">
                         {/* Vehicles */}
                         <button
                             onClick={() => toggleFilter('vehicles')}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:shadow-sm ${
-                                filters.vehicles
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:shadow-sm ${filters.vehicles
                                     ? 'bg-blue-50 border-blue-500'
                                     : 'bg-gray-50 border-gray-300 opacity-60'
-                            }`}
+                                }`}
                             title={`${filters.vehicles ? 'Hide' : 'Show'} vehicles`}
                         >
-                            <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                                filters.vehicles ? 'bg-blue-500' : 'bg-gray-400'
-                            }`}>
+                            <div className={`w-6 h-6 rounded flex items-center justify-center ${filters.vehicles ? 'bg-blue-500' : 'bg-gray-400'
+                                }`}>
                                 <Truck className="w-3.5 h-3.5 text-white" />
                             </div>
                             <div className="flex flex-col items-start">
-                                <span className={`text-xs font-semibold leading-none ${
-                                    filters.vehicles ? 'text-blue-700' : 'text-gray-500'
-                                }`}>
+                                <span className={`text-xs font-semibold leading-none ${filters.vehicles ? 'text-blue-700' : 'text-gray-500'
+                                    }`}>
                                     Vehicles
                                 </span>
                                 <span className="text-[10px] text-gray-500 leading-none mt-0.5">{stats.totalVehicles} idle</span>
@@ -622,22 +619,19 @@ const LiveMap = () => {
                         {/* Drivers */}
                         <button
                             onClick={() => toggleFilter('drivers')}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:shadow-sm ${
-                                filters.drivers
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:shadow-sm ${filters.drivers
                                     ? 'bg-green-50 border-green-500'
                                     : 'bg-gray-50 border-gray-300 opacity-60'
-                            }`}
+                                }`}
                             title={`${filters.drivers ? 'Hide' : 'Show'} drivers`}
                         >
-                            <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                                filters.drivers ? 'bg-green-500' : 'bg-gray-400'
-                            }`}>
+                            <div className={`w-6 h-6 rounded flex items-center justify-center ${filters.drivers ? 'bg-green-500' : 'bg-gray-400'
+                                }`}>
                                 <User className="w-3.5 h-3.5 text-white" />
                             </div>
                             <div className="flex flex-col items-start">
-                                <span className={`text-xs font-semibold leading-none ${
-                                    filters.drivers ? 'text-green-700' : 'text-gray-500'
-                                }`}>
+                                <span className={`text-xs font-semibold leading-none ${filters.drivers ? 'text-green-700' : 'text-gray-500'
+                                    }`}>
                                     Drivers
                                 </span>
                                 <span className="text-[10px] text-gray-500 leading-none mt-0.5">{stats.totalDrivers} total</span>
@@ -647,22 +641,19 @@ const LiveMap = () => {
                         {/* Active Trips */}
                         <button
                             onClick={() => toggleFilter('trips')}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:shadow-sm ${
-                                filters.trips
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all hover:shadow-sm ${filters.trips
                                     ? 'bg-purple-50 border-purple-500'
                                     : 'bg-gray-50 border-gray-300 opacity-60'
-                            }`}
+                                }`}
                             title={`${filters.trips ? 'Hide' : 'Show'} active trips`}
                         >
-                            <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                                filters.trips ? 'bg-purple-500' : 'bg-gray-400'
-                            }`}>
+                            <div className={`w-6 h-6 rounded flex items-center justify-center ${filters.trips ? 'bg-purple-500' : 'bg-gray-400'
+                                }`}>
                                 <Navigation className="w-3.5 h-3.5 text-white" />
                             </div>
                             <div className="flex flex-col items-start">
-                                <span className={`text-xs font-semibold leading-none ${
-                                    filters.trips ? 'text-purple-700' : 'text-gray-500'
-                                }`}>
+                                <span className={`text-xs font-semibold leading-none ${filters.trips ? 'text-purple-700' : 'text-gray-500'
+                                    }`}>
                                     Active Trips
                                 </span>
                                 <span className="text-[10px] text-gray-500 leading-none mt-0.5">{stats.totalTrips} ongoing</span>
@@ -673,100 +664,99 @@ const LiveMap = () => {
 
                 {/* Map Content Area */}
                 <div className="flex-1 relative bg-slate-100 overflow-hidden">
-                {loading ? (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <div className="text-center">
-                            <Loader2 className="w-12 h-12 animate-spin text-amber-500 mx-auto mb-3" />
-                            <p className="text-base text-gray-600">Loading map...</p>
+                    {loading ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <div className="text-center">
+                                <Loader2 className="w-12 h-12 animate-spin text-amber-500 mx-auto mb-3" />
+                                <p className="text-base text-gray-600">Loading map...</p>
+                            </div>
                         </div>
-                    </div>
-                ) : error ? (
-                    <div className="w-full h-full flex items-center justify-center p-6">
-                        <div className="text-center max-w-md">
-                            <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                            <p className="text-base font-medium text-gray-900 mb-2">Failed to Load Map</p>
-                            <p className="text-sm text-gray-600 mb-4">{error}</p>
-                            <button
-                                onClick={fetchMapData}
-                                className="bg-amber-500 text-white px-6 py-2 rounded-lg hover:bg-amber-600 transition-colors font-medium"
-                            >
-                                Try Again
-                            </button>
+                    ) : error ? (
+                        <div className="w-full h-full flex items-center justify-center p-6">
+                            <div className="text-center max-w-md">
+                                <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                <p className="text-base font-medium text-gray-900 mb-2">Failed to Load Map</p>
+                                <p className="text-sm text-gray-600 mb-4">{error}</p>
+                                <button
+                                    onClick={fetchMapData}
+                                    className="bg-amber-500 text-white px-6 py-2 rounded-lg hover:bg-amber-600 transition-colors font-medium"
+                                >
+                                    Try Again
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                ) : !officeLocation ? (
-                    <div className="w-full h-full flex items-center justify-center p-6">
-                        <div className="text-center max-w-md">
-                            <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                            <p className="text-lg font-semibold text-gray-900 mb-2">No Office Location Set</p>
-                            <p className="text-sm text-gray-600 mb-4">
-                                To view your fleet on the map, please set your office location in the Settings tab.
-                            </p>
-                            <a
-                                href="/dashboard?tab=settings"
-                                className="inline-block bg-amber-500 text-white px-6 py-2 rounded-lg hover:bg-amber-600 transition-colors font-medium"
-                            >
-                                Go to Settings
-                            </a>
+                    ) : !officeLocation ? (
+                        <div className="w-full h-full flex items-center justify-center p-6">
+                            <div className="text-center max-w-md">
+                                <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                <p className="text-lg font-semibold text-gray-900 mb-2">No Office Location Set</p>
+                                <p className="text-sm text-gray-600 mb-4">
+                                    To view your fleet on the map, please set your office location in the Settings tab.
+                                </p>
+                                <a
+                                    href="/dashboard?tab=settings"
+                                    className="inline-block bg-amber-500 text-white px-6 py-2 rounded-lg hover:bg-amber-600 transition-colors font-medium"
+                                >
+                                    Go to Settings
+                                </a>
+                            </div>
                         </div>
-                    </div>
-                ) : (
-                    <>
-                        <MapView
-                            key={mapUpdateKey}
-                            center={mapCenter}
-                            markers={markers}
-                            showControls={true}
-                            onMarkerClick={handleMarkerClick}
-                        />
-                        
-                        {/* Speed Overlay for Live Tracked Vehicles */}
-                        {Object.keys(traccarPositions).length > 0 && (
-                            <div className="absolute top-4 left-4 z-[1000] bg-white rounded-lg shadow-lg border-2 border-gray-200 max-w-xs">
-                                <div className="px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-t-lg flex items-center gap-2">
-                                    <Gauge className="w-5 h-5" />
-                                    <h3 className="font-semibold text-sm">Live Tracking</h3>
-                                </div>
-                                <div className="max-h-64 overflow-y-auto">
-                                    {Object.entries(traccarPositions).map(([vehicleId, position]) => {
-                                        const vehicle = vehiclesData.find(v => v._id === vehicleId);
-                                        const speedKmh = (position.speed * 3.6).toFixed(1);
-                                        const isMoving = position.speed > 0.5;
-                                        
-                                        return (
-                                            <div key={vehicleId} className="px-4 py-3 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2 flex-1">
-                                                        <div className={`w-2 h-2 rounded-full ${
-                                                            isMoving ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
-                                                        }`} />
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-sm font-semibold text-gray-900 truncate">
-                                                                {vehicle?.regnNo || 'Unknown Vehicle'}
-                                                            </p>
-                                                            <p className="text-xs text-gray-500">
-                                                                {position.valid ? 'Valid GPS' : 'Invalid GPS'}
-                                                            </p>
+                    ) : (
+                        <>
+                            <MapView
+                                key={mapUpdateKey}
+                                center={mapCenter}
+                                markers={markers}
+                                showControls={true}
+                                onMarkerClick={handleMarkerClick}
+                            />
+
+                            {/* Speed Overlay for Live Tracked Vehicles */}
+                            {Object.keys(traccarPositions).length > 0 && (
+                                <div className="absolute top-4 left-4 z-[1000] bg-white rounded-lg shadow-lg border-2 border-gray-200 max-w-xs">
+                                    <div className="px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-t-lg flex items-center gap-2">
+                                        <Gauge className="w-5 h-5" />
+                                        <h3 className="font-semibold text-sm">Live Tracking</h3>
+                                    </div>
+                                    <div className="max-h-64 overflow-y-auto">
+                                        {Object.entries(traccarPositions).map(([vehicleId, position]) => {
+                                            const vehicle = vehiclesData.find(v => v._id === vehicleId);
+                                            const speedKmh = (position.speed * 3.6).toFixed(1);
+                                            const isMoving = position.speed > 0.5;
+
+                                            return (
+                                                <div key={vehicleId} className="px-4 py-3 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2 flex-1">
+                                                            <div className={`w-2 h-2 rounded-full ${isMoving ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                                                                }`} />
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-semibold text-gray-900 truncate">
+                                                                    {vehicle?.regnNo || 'Unknown Vehicle'}
+                                                                </p>
+                                                                <p className="text-xs text-gray-500">
+                                                                    {position.valid ? 'Valid GPS' : 'Invalid GPS'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right ml-3">
+                                                            <div className="text-2xl font-bold text-gray-900">{speedKmh}</div>
+                                                            <div className="text-xs text-gray-500">km/h</div>
                                                         </div>
                                                     </div>
-                                                    <div className="text-right ml-3">
-                                                        <div className="text-2xl font-bold text-gray-900">{speedKmh}</div>
-                                                        <div className="text-xs text-gray-500">km/h</div>
-                                                    </div>
+                                                    {position.attributes?.batteryLevel && (
+                                                        <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                                            <span>Battery: {position.attributes.batteryLevel}%</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                {position.attributes?.batteryLevel && (
-                                                    <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
-                                                        <span>Battery: {position.attributes.batteryLevel}%</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </>
-                )}
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
 

@@ -30,7 +30,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
 
     // Initialize Socket.IO connection to trip-service
     useEffect(() => {
-        const TRIP_SERVICE_URL = import.meta.env.VITE_TRIP_SERVICE_URL || 'http://localhost:5004';
+        // Use VITE_TRIP_SERVICE_URL or fallback to VITE_API_URL
+        const TRIP_SERVICE_URL = import.meta.env.VITE_TRIP_SERVICE_URL || import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
         const newSocket = io(TRIP_SERVICE_URL, {
             transports: ['websocket', 'polling'],
             reconnection: true,
@@ -64,7 +65,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
 
     // Initialize Socket.IO connection to user-service
     useEffect(() => {
-        const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || 'http://localhost:5001';
+        // Use VITE_USER_SERVICE_URL or fallback to VITE_API_URL
+        const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
         const newUserSocket = io(USER_SERVICE_URL, {
             transports: ['websocket', 'polling'],
             reconnection: true,
@@ -535,8 +537,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                             <button
                                 onClick={() => toggleFilter('office')}
                                 className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${filters.office
-                                        ? 'bg-amber-500 text-white border-amber-600'
-                                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                    ? 'bg-amber-500 text-white border-amber-600'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                                     }`}
                             >
                                 <Building2 className="w-4 h-4" />
@@ -545,8 +547,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                             <button
                                 onClick={() => toggleFilter('vehicles')}
                                 className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${filters.vehicles
-                                        ? 'bg-blue-500 text-white border-blue-600'
-                                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                    ? 'bg-blue-500 text-white border-blue-600'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                                     }`}
                             >
                                 <Truck className="w-4 h-4" />
@@ -555,8 +557,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                             <button
                                 onClick={() => toggleFilter('drivers')}
                                 className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${filters.drivers
-                                        ? 'bg-green-500 text-white border-green-600'
-                                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                    ? 'bg-green-500 text-white border-green-600'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                                     }`}
                             >
                                 <User className="w-4 h-4" />
@@ -565,8 +567,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                             <button
                                 onClick={() => toggleFilter('trips')}
                                 className={`px-4 py-2 rounded-full font-medium text-sm shadow-lg border transition-all flex items-center gap-2 ${filters.trips
-                                        ? 'bg-purple-500 text-white border-purple-600'
-                                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                    ? 'bg-purple-500 text-white border-purple-600'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                                     }`}
                             >
                                 <Navigation className="w-4 h-4" />
@@ -701,8 +703,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                                                 <div className="text-sm text-gray-600 mt-1">
                                                                     <p>{item.data.regnNo}</p>
                                                                     <p className={`inline-block px-2 py-0.5 rounded-full text-xs mt-1 ${item.data.status === 'Available'
-                                                                            ? 'bg-green-100 text-green-700'
-                                                                            : 'bg-red-100 text-red-700'
+                                                                        ? 'bg-green-100 text-green-700'
+                                                                        : 'bg-red-100 text-red-700'
                                                                         }`}>
                                                                         {item.data.status}
                                                                     </p>
@@ -809,8 +811,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-sm text-gray-600">Status</span>
                                                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${selectedItemDetails.data.status === 'Available'
-                                                                ? 'bg-green-100 text-green-700'
-                                                                : 'bg-red-100 text-red-700'
+                                                            ? 'bg-green-100 text-green-700'
+                                                            : 'bg-red-100 text-red-700'
                                                             }`}>
                                                             {selectedItemDetails.data.status}
                                                         </span>
@@ -935,8 +937,8 @@ const LiveFleetMap = ({ isFullPage = false }) => {
                                                         <div className="flex items-center justify-between pt-2">
                                                             <span className="text-sm text-gray-600">Status</span>
                                                             <span className={`px-3 py-1 rounded-full text-xs font-medium ${selectedItemDetails.data.status === 'In Progress'
-                                                                    ? 'bg-blue-100 text-blue-700'
-                                                                    : 'bg-gray-100 text-gray-700'
+                                                                ? 'bg-blue-100 text-blue-700'
+                                                                : 'bg-gray-100 text-gray-700'
                                                                 }`}>
                                                                 {selectedItemDetails.data.status}
                                                             </span>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { User, Building2, Mail, MapPin, Upload, Loader2, Camera, Edit2, X, FileText, ShieldCheck, Clock, CheckCircle, XCircle } from 'lucide-react';
-import axios from 'axios';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { authService } from '../../services/authService';
 import VerifiedBadge, { VerificationStatusBadge } from '../common/VerifiedBadge';
@@ -44,27 +44,25 @@ const ProfileSettings = () => {
 
     const fetchProfile = async () => {
         try {
-            const token = localStorage.getItem('authToken');
-            const response = await axios.get('http://localhost:5001/api/users/me', {
-                headers: { 'x-auth-token': token }
-            });
-            console.log('Fetched user data:', response.data.user);
+            const response = await api.get('/api/users/me');
+            const user = response.data.user;
+            console.log('Fetched user data:', user);
 
             setProfileData({
-                firstName: response.data.user.firstName || '',
-                lastName: response.data.user.lastName || '',
-                companyName: response.data.user.companyName || '',
-                email: response.data.user.email || '',
-                role: response.data.user.role || '',
-                profileImage: response.data.user.profileImage || '',
-                officeLocation: response.data.user.officeLocation || { type: 'Point', coordinates: [], address: '' },
-                dlFrontImage: response.data.user.dlFrontImage || '',
-                dlBackImage: response.data.user.dlBackImage || '',
-                dlDetails: response.data.user.dlDetails || {},
-                isVerifiedBusiness: response.data.user.isVerifiedBusiness || false,
-                verificationStatus: response.data.user.verificationStatus || 'none',
-                verificationRequestedAt: response.data.user.verificationRequestedAt || null,
-                verificationNotes: response.data.user.verificationNotes || ''
+                firstName: user.firstName || '',
+                lastName: user.lastName || '',
+                companyName: user.companyName || '',
+                email: user.email || '',
+                role: user.role || '',
+                profileImage: user.profileImage || '',
+                officeLocation: user.officeLocation || { type: 'Point', coordinates: [], address: '' },
+                dlFrontImage: user.dlFrontImage || '',
+                dlBackImage: user.dlBackImage || '',
+                dlDetails: user.dlDetails || {},
+                isVerifiedBusiness: user.isVerifiedBusiness || false,
+                verificationStatus: user.verificationStatus || 'none',
+                verificationRequestedAt: user.verificationRequestedAt || null,
+                verificationNotes: user.verificationNotes || ''
             });
             setLoading(false);
         } catch (err) {
@@ -95,18 +93,14 @@ const ProfileSettings = () => {
         setUploadingImage(true);
 
         try {
-            const token = localStorage.getItem('authToken');
             const formData = new FormData();
             formData.append('profileImage', file);
 
-            const response = await axios.post(
-                'http://localhost:5001/api/users/profile/image',
+            const response = await api.post(
+                '/api/users/profile/image',
                 formData,
                 {
-                    headers: {
-                        'x-auth-token': token,
-                        'Content-Type': 'multipart/form-data'
-                    }
+                    headers: { 'Content-Type': 'multipart/form-data' }
                 }
             );
 
@@ -115,7 +109,7 @@ const ProfileSettings = () => {
                 profileImage: response.data.profileImage
             }));
             toast.success('Profile image updated successfully');
-            
+
             // Dispatch event to update sidebar
             window.dispatchEvent(new Event('profileUpdated'));
         } catch (err) {
@@ -153,28 +147,19 @@ const ProfileSettings = () => {
         setSaving(true);
 
         try {
-            const token = localStorage.getItem('authToken');
-
             console.log('Saving profile with officeLocation:', profileData.officeLocation);
-            console.log('Office location type:', profileData.officeLocation?.type);
-            console.log('Office location coordinates:', profileData.officeLocation?.coordinates);
-            console.log('Office location address:', profileData.officeLocation?.address);
 
-            const response = await axios.put(
-                'http://localhost:5001/api/users/profile',
+            const response = await api.put(
+                '/api/users/profile',
                 {
                     firstName: profileData.firstName,
                     lastName: profileData.lastName,
                     companyName: profileData.companyName,
                     officeLocation: profileData.officeLocation
-                },
-                {
-                    headers: { 'x-auth-token': token }
                 }
             );
 
             console.log('Save response:', response.data);
-
             toast.success('Profile updated successfully');
         } catch (err) {
             console.error('Error updating profile:', err);
@@ -308,14 +293,14 @@ const ProfileSettings = () => {
                                     <VerifiedBadge size="md" showText={true} />
                                 )}
                             </div>
-                            
+
                             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                                 {/* Verification Status Display */}
                                 <div className="flex items-center justify-between mb-4">
                                     <span className="text-sm text-gray-600">Status:</span>
-                                    <VerificationStatusBadge 
-                                        status={profileData.verificationStatus} 
-                                        isVerified={profileData.isVerifiedBusiness} 
+                                    <VerificationStatusBadge
+                                        status={profileData.verificationStatus}
+                                        isVerified={profileData.isVerifiedBusiness}
                                     />
                                 </div>
 
@@ -387,7 +372,7 @@ const ProfileSettings = () => {
                                 ) : (
                                     <div>
                                         <p className="text-sm text-gray-600 mb-4">
-                                            Get your business verified to receive a Mobitrak Verified badge. 
+                                            Get your business verified to receive a Mobitrak Verified badge.
                                             This helps build trust with drivers and other businesses on the platform.
                                         </p>
                                         <div className="bg-white p-3 rounded-lg border border-gray-200 mb-4">
@@ -476,7 +461,7 @@ const ProfileSettings = () => {
                                             )}
                                         </div>
                                     </div>
-                                    
+
                                     {/* DL Details Display */}
                                     {profileData.dlDetails && Object.keys(profileData.dlDetails).length > 0 && (
                                         <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -557,17 +542,16 @@ const ProfileSettings = () => {
                                     <input
                                         type="text"
                                         name="companyName"
-                                        value={profileData.role === 'driver' 
+                                        value={profileData.role === 'driver'
                                             ? (profileData.companyName || 'Unemployed')
                                             : profileData.companyName
                                         }
                                         onChange={handleInputChange}
                                         disabled={profileData.role === 'driver'}
-                                        className={`w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg ${
-                                            profileData.role === 'driver' 
-                                                ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                                        className={`w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg ${profileData.role === 'driver'
+                                                ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
                                                 : 'focus:ring-2 focus:ring-amber-500 focus:border-transparent'
-                                        }`}
+                                            }`}
                                         placeholder={profileData.role === 'driver' ? '' : 'Enter company name'}
                                     />
                                 </div>

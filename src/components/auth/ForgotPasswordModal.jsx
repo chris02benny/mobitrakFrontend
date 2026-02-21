@@ -32,7 +32,8 @@ const ForgotPasswordModal = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
 
         try {
-            const response = await fetch('http://localhost:5001/api/users/forgot-password', {
+            const BASE_URL = import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
+            const response = await fetch(`${BASE_URL}/api/users/forgot-password`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -61,7 +62,8 @@ const ForgotPasswordModal = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
 
         try {
-            const response = await fetch('http://localhost:5001/api/users/verify-reset-otp', {
+            const BASE_URL = import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
+            const response = await fetch(`${BASE_URL}/api/users/verify-reset-otp`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -101,7 +103,8 @@ const ForgotPasswordModal = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
 
         try {
-            const response = await fetch('http://localhost:5001/api/users/reset-password', {
+            const BASE_URL = import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
+            const response = await fetch(`${BASE_URL}/api/users/reset-password`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
