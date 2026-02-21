@@ -5,8 +5,8 @@
  *
  * Base URL is read from VITE_API_URL environment variable:
  *   - Local dev:   http://localhost:3000  (serverless-offline)
- *     OR           https://qyf9xrigzg.execute-api.ap-south-1.amazonaws.com (live AWS)
- *   - Production:  https://qyf9xrigzg.execute-api.ap-south-1.amazonaws.com
+ *     OR           https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com (live AWS)
+ *   - Production:  https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com
  *
  * Set via .env (local) or Vercel Environment Variables (production).
  *
@@ -19,7 +19,7 @@ import axios from 'axios';
 // This prevents silent 404s when the env var is missing from Vercel.
 const BASE_URL =
     import.meta.env.VITE_API_URL ||
-    'https://qyf9xrigzg.execute-api.ap-south-1.amazonaws.com';
+    'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
 
 const api = axios.create({
     baseURL: BASE_URL,

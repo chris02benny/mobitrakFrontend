@@ -4,7 +4,7 @@
 
 | Variable | Value |
 |---|---|
-| `VITE_API_URL` | `https://qyf9xrigzg.execute-api.ap-south-1.amazonaws.com` |
+| `VITE_API_URL` | `https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com` |
 
 ---
 
@@ -15,7 +15,7 @@
 3. Click **Add New**.
 4. Set:
    - **Name:** `VITE_API_URL`
-   - **Value:** `https://qyf9xrigzg.execute-api.ap-south-1.amazonaws.com`
+   - **Value:** `https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com`
    - **Environment:** Check all three — ✅ Production, ✅ Preview, ✅ Development
 5. Click **Save**.
 6. Go to **Deployments** → click **⋮** on the latest deployment → **Redeploy** to apply the new variable.
@@ -54,7 +54,7 @@ VITE_API_URL=http://localhost:3000
 For local development against the **live AWS** backend (also works):
 ```
 # mobitrak-frontend/.env
-VITE_API_URL=https://qyf9xrigzg.execute-api.ap-south-1.amazonaws.com
+VITE_API_URL=https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com
 ```
 
 > [!TIP]
@@ -79,7 +79,7 @@ VITE_API_URL=https://qyf9xrigzg.execute-api.ap-south-1.amazonaws.com
 
 After deployment, verify:
 
-- [ ] `https://qyf9xrigzg.execute-api.ap-south-1.amazonaws.com/health` returns `{"status":"ok"}`
+- [ ] `https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com/health` returns `{"status":"ok"}`
 - [ ] Login works on the Vercel frontend with no CORS errors in DevTools Console
 - [ ] Network requests in DevTools show AWS endpoint (not localhost)
 - [ ] `x-auth-token` header is sent on authenticated requests
