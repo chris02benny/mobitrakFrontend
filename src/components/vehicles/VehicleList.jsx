@@ -6,7 +6,8 @@ import VehicleDetailsModal from './VehicleDetailsModal';
 import TrackingDeviceModal from './TrackingDeviceModal';
 import LiveTrackingModal from './LiveTrackingModal';
 import ConfirmationModal from '../common/ConfirmationModal';
-import { Plus, MoreVertical, Eye, Edit2, Trash2, MapPin } from 'lucide-react';
+import { Plus, MoreVertical, Eye, Edit2, Trash2, MapPin, Calendar } from 'lucide-react';
+import ScheduleMaintenanceModal from '../maintenance/ScheduleMaintenanceModal';
 
 const VehicleList = () => {
     const [vehicles, setVehicles] = useState([]);
@@ -17,6 +18,7 @@ const VehicleList = () => {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showTrackingModal, setShowTrackingModal] = useState(false);
     const [showLiveTrackingModal, setShowLiveTrackingModal] = useState(false);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
     const [openMenuId, setOpenMenuId] = useState(null);
     const [showConfirmation, setShowConfirmation] = useState(false);
@@ -81,6 +83,12 @@ const VehicleList = () => {
     const handleTrackingClick = (vehicle) => {
         setSelectedVehicle(vehicle);
         setShowTrackingModal(true);
+        setOpenMenuId(null);
+    };
+
+    const handleScheduleMaintenanceClick = (vehicle) => {
+        setSelectedVehicle(vehicle);
+        setShowScheduleModal(true);
         setOpenMenuId(null);
     };
 
@@ -207,10 +215,10 @@ const VehicleList = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${vehicle.vehicleType === 'goods'
-                                                ? 'bg-blue-100 text-blue-800'
-                                                : vehicle.vehicleType === 'passenger'
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-gray-100 text-gray-800'
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : vehicle.vehicleType === 'passenger'
+                                                ? 'bg-green-100 text-green-800'
+                                                : 'bg-gray-100 text-gray-800'
                                             }`}>
                                             {vehicle.vehicleType === 'goods'
                                                 ? 'Commercial'
@@ -230,10 +238,10 @@ const VehicleList = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${vehicle.status === 'ASSIGNED'
-                                                ? 'bg-amber-100 text-amber-800'
-                                                : vehicle.status === 'MAINTENANCE'
-                                                    ? 'bg-red-100 text-red-800'
-                                                    : 'bg-green-100 text-green-800'
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : vehicle.status === 'MAINTENANCE'
+                                                ? 'bg-red-100 text-red-800'
+                                                : 'bg-green-100 text-green-800'
                                             }`}>
                                             {vehicle.status || 'IDLE'}
                                         </span>
@@ -293,6 +301,13 @@ const VehicleList = () => {
                                                 >
                                                     <Edit2 size={16} />
                                                     Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleScheduleMaintenanceClick(vehicle)}
+                                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                                >
+                                                    <Calendar size={16} />
+                                                    Schedule Maintenance
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteClick(vehicle)}
@@ -372,6 +387,18 @@ const VehicleList = () => {
                         setShowLiveTrackingModal(false);
                         setSelectedVehicle(null);
                     }}
+                    vehicle={selectedVehicle}
+                />
+            )}
+
+            {showScheduleModal && selectedVehicle && (
+                <ScheduleMaintenanceModal
+                    isOpen={showScheduleModal}
+                    onClose={() => {
+                        setShowScheduleModal(false);
+                        setSelectedVehicle(null);
+                    }}
+                    onSuccess={fetchVehicles}
                     vehicle={selectedVehicle}
                 />
             )}
