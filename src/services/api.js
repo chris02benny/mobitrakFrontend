@@ -19,7 +19,7 @@ import axios from 'axios';
 // This prevents silent 404s when the env var is missing from Vercel.
 const BASE_URL =
     import.meta.env.VITE_API_URL ||
-    'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
+    'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com/dev';
 
 const api = axios.create({
     baseURL: BASE_URL,
