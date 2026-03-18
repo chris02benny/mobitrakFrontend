@@ -532,16 +532,16 @@ const DriverMonitoring = () => {
                 <div className="flex flex-col gap-4">
                     {/* Status Card */}
                     <div className={`rounded-xl border p-5 shadow-sm transition-colors duration-500 ${isDrowsy && isMonitoring
-                            ? 'bg-red-50 border-red-200'
-                            : 'bg-white border-gray-200'
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-white border-gray-200'
                         }`}>
                         <div className="flex items-center justify-between mb-4">
                             <span className="text-sm font-medium text-gray-600">Driver Status</span>
                             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${!isMonitoring
-                                    ? 'bg-gray-100 text-gray-500'
-                                    : isDrowsy
-                                        ? 'bg-red-100 text-red-700'
-                                        : 'bg-green-100 text-green-700'
+                                ? 'bg-gray-100 text-gray-500'
+                                : isDrowsy
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-green-100 text-green-700'
                                 }`}>
                                 {!isMonitoring ? 'Inactive' : status}
                             </span>
@@ -611,10 +611,10 @@ const DriverMonitoring = () => {
                         onClick={isMonitoring ? stopMonitoring : startMonitoring}
                         disabled={isLoading}
                         className={`w-full py-3.5 rounded-xl font-semibold text-white transition-all duration-200 flex items-center justify-center gap-2 ${isLoading
-                                ? 'bg-gray-400 cursor-not-allowed'
-                                : isMonitoring
-                                    ? 'bg-red-500 hover:bg-red-600 active:scale-95'
-                                    : 'bg-amber-500 hover:bg-amber-600 active:scale-95'
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : isMonitoring
+                                ? 'bg-red-500 hover:bg-red-600 active:scale-95'
+                                : 'bg-amber-500 hover:bg-amber-600 active:scale-95'
                             }`}
                     >
                         {isLoading ? (
