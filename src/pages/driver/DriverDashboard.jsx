@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Route, Clock, Award, Briefcase, Car } from 'lucide-react';
+import { Route, Clock, Award, Briefcase, Car, Eye } from 'lucide-react';
 import StatCard from '../../components/dashboard/StatCard';
 
 const DriverDashboard = () => {
@@ -45,7 +45,7 @@ const DriverDashboard = () => {
             </div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div
                     onClick={() => navigate('/driver/jobs')}
                     className="bg-white rounded-xl border border-gray-200 p-6 cursor-pointer hover:shadow-lg transition-shadow"
@@ -69,6 +69,23 @@ const DriverDashboard = () => {
                     <Car size={32} className="text-amber-500 mb-3" />
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">My Vehicle</h3>
                     <p className="text-gray-600 text-sm">Check your assigned vehicle details and status</p>
+                </div>
+
+                {/* ── NEW: Start Monitoring card ── */}
+                <div
+                    onClick={() => navigate('/driver/monitoring')}
+                    className="relative bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl border border-amber-400 p-6 cursor-pointer hover:shadow-lg hover:shadow-amber-200 transition-all text-white overflow-hidden group"
+                >
+                    {/* Subtle animated ring */}
+                    <div className="absolute inset-0 rounded-xl border-2 border-white/20 scale-95 group-hover:scale-100 transition-transform duration-300" />
+                    <Eye size={32} className="mb-3 relative z-10" />
+                    <h3 className="text-lg font-semibold mb-2 relative z-10">Start Monitoring</h3>
+                    <p className="text-amber-100 text-sm relative z-10">
+                        Enable drowsiness detection &amp; live video streaming
+                    </p>
+                    <span className="absolute top-3 right-3 text-xs bg-white/20 px-2 py-0.5 rounded-full font-medium">
+                        LIVE
+                    </span>
                 </div>
             </div>
         </div>
