@@ -3,11 +3,12 @@
  * Business/admin-side live driver monitoring dashboard.
  *
  * Features:
- *  - Listens for "admin_monitoring" Socket.IO events
- *  - Displays real-time status cards per driver (EAR, PERCLOS, status)
- *  - MUI Snackbar/Alert for DROWSY alerts
- *  - WebRTC video receive: admin can request a live feed from any driver
- *  - Video modal/overlay for the received stream
+ *  - Lists ALL fleet drivers fetched from the hiring service.
+ *  - Shows real-time monitoring status per driver (ACTIVE / NOT MONITORING).
+ *  - Reuses the shared socket + driverStatuses from MonitoringAlertProvider.
+ *  - WebRTC video feed viewer (modal) for monitoring-active drivers.
+ *  - Global DROWSY alerts are handled by MonitoringAlertProvider; this component
+ *    shows an in-card DROWSY badge only.
  */
 
 import React, {
@@ -16,109 +17,197 @@ import React, {
     useEffect,
     useCallback,
 } from 'react';
-import { io } from 'socket.io-client';
-import Snackbar from '@mui/material/Snackbar';
-import MuiAlert from '@mui/material/Alert';
-import AlertTitle from '@mui/material/AlertTitle';
+import { Eye, EyeOff, Video, AlertTriangle, User, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { useMonitoringContext } from './MonitoringAlertProvider';
+import { hiringService } from '../../services/hiringService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const TRIP_SERVICE_URL =
-    import.meta.env.VITE_TRIP_SERVICE_URL ||
-    import.meta.env.VITE_API_URL ||
-    'http://localhost:5004';
 
 const RTC_CONFIG = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+/** Single driver monitoring card */
+const DriverCard = ({ employment, liveData, onRequestVideo }) => {
+    const driver = employment.driverId;
+    const userDetails = driver?.userDetails;
+    const driverId = driver?._id || driver?.userId;
+
+    const name = userDetails?.firstName
+        ? `${userDetails.firstName} ${userDetails.lastName || ''}`.trim()
+        : 'Unknown Driver';
+
+    const isMonitoring = liveData && liveData.status !== 'OFFLINE';
+    const isDrowsy = liveData?.status === 'DROWSY';
+    const perclosPct = Math.min((liveData?.perclos || 0) * 100, 100);
+    const earVal = liveData?.ear || 0;
+
+    const formatTime = (iso) => {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleTimeString('en-IN', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+        });
+    };
+
+    return (
+        <div className={`rounded-2xl border overflow-hidden shadow-sm transition-all duration-300 ${isDrowsy
+            ? 'border-red-300 shadow-red-100 bg-red-50'
+            : isMonitoring
+                ? 'border-green-200 bg-white shadow-green-50'
+                : 'border-gray-200 bg-white'
+            }`}>
+            {/* ── Card Header ── */}
+            <div className={`px-4 py-3.5 flex items-center justify-between ${isDrowsy ? 'bg-red-500' : isMonitoring ? 'bg-gray-800' : 'bg-gray-100'
+                }`}>
+                <div className="flex items-center gap-3">
+                    {/* Avatar */}
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${isMonitoring ? 'bg-white/20' : 'bg-gray-200'
+                        }`}>
+                        {userDetails?.profileImage ? (
+                            <img src={userDetails.profileImage} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                            <User size={18} className={isMonitoring ? 'text-white' : 'text-gray-400'} />
+                        )}
+                    </div>
+                    <div>
+                        <p className={`text-sm font-semibold leading-tight ${isMonitoring ? 'text-white' : 'text-gray-700'}`}>
+                            {name}
+                        </p>
+                        <p className={`text-xs mt-0.5 ${isMonitoring ? 'text-white/60' : 'text-gray-400'}`}>
+                            {userDetails?.email || 'No email'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Status badge */}
+                {isMonitoring ? (
+                    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${isDrowsy
+                        ? 'bg-white text-red-600 animate-pulse'
+                        : 'bg-green-500/30 text-green-200 border border-green-400/40'
+                        }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${isDrowsy ? 'bg-red-500' : 'bg-green-400'} animate-pulse`} />
+                        {isDrowsy ? '⚠️ DROWSY' : 'Monitoring Active'}
+                    </span>
+                ) : (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-500">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                        Not Monitoring
+                    </span>
+                )}
+            </div>
+
+            {/* ── Card Body ── */}
+            <div className="p-4 space-y-3">
+                {isMonitoring ? (
+                    <>
+                        {/* PERCLOS bar */}
+                        <div>
+                            <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                <span>PERCLOS (Eye Closure)</span>
+                                <span className={isDrowsy ? 'text-red-600 font-semibold' : ''}>
+                                    {perclosPct.toFixed(1)}%
+                                </span>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full transition-all duration-500 ${isDrowsy ? 'bg-red-500' : perclosPct > 50 ? 'bg-amber-400' : 'bg-green-400'
+                                        }`}
+                                    style={{ width: `${perclosPct}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* EAR + Last update */}
+                        <div className="flex items-center justify-between text-xs">
+                            <div>
+                                <span className="text-gray-400">EAR </span>
+                                <span className={`font-mono font-semibold ${earVal < 0.22 ? 'text-red-600' : 'text-gray-700'}`}>
+                                    {earVal.toFixed(3)}
+                                </span>
+                            </div>
+                            <div className="text-gray-400">
+                                Updated {formatTime(liveData?.timestamp)}
+                            </div>
+                        </div>
+
+                        {/* Action */}
+                        <button
+                            onClick={() => onRequestVideo(driverId, name)}
+                            className="w-full py-2 text-xs font-semibold bg-gray-900 text-white rounded-xl hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Video size={14} />
+                            View Live Feed
+                        </button>
+                    </>
+                ) : (
+                    /* Greyed out placeholder metrics */
+                    <>
+                        <div>
+                            <div className="flex justify-between text-xs text-gray-300 mb-1">
+                                <span>PERCLOS</span><span>—</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full" />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-300">
+                            <span>EAR</span><span className="font-mono">—</span>
+                        </div>
+                        <div className="w-full py-2 text-xs font-medium bg-gray-100 text-gray-400 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed select-none">
+                            <EyeOff size={14} />
+                            Driver not active
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 const LiveMonitoringDashboard = () => {
-    // ── Refs ───────────────────────────────────────────────────────────────────
-    const socketRef = useRef(null);
-    const peerRef = useRef(null);     // active RTCPeerConnection
-    const remoteVideoRef = useRef(null);     // <video> for remote stream
-    const driverSocketRef = useRef(null);     // driver's socketId for WebRTC signaling
+    // ── Shared monitoring state from global provider ───────────────────────
+    const { socketRef, socketReady, driverStatuses } = useMonitoringContext();
 
-    // ── State ──────────────────────────────────────────────────────────────────
-    /** Map of driverId → latest telemetry data */
-    const [driverStatuses, setDriverStatuses] = useState({});
-
-    /** Queue of DROWSY alert snackbars */
-    const [alerts, setAlerts] = useState([]);
-
-    /** Driver currently being viewed via WebRTC */
-    const [viewingDriver, setViewingDriver] = useState(null);
-
-    /** Is the WebRTC video modal open */
+    // ── WebRTC state ───────────────────────────────────────────────────────
+    const peerRef = useRef(null);
+    const remoteVideoRef = useRef(null);
+    const [viewingDriver, setViewingDriver] = useState(null); // { id, name }
     const [showVideoModal, setShowVideoModal] = useState(false);
-
-    /** WebRTC connection state */
     const [rtcState, setRtcState] = useState('idle'); // 'idle' | 'connecting' | 'connected' | 'error'
 
-    const [socketReady, setSocketReady] = useState(false);
+    // ── Fleet driver list ──────────────────────────────────────────────────
+    const [employees, setEmployees] = useState([]);
+    const [loadingDrivers, setLoadingDrivers] = useState(true);
+    const [driverError, setDriverError] = useState(null);
 
-    // ── Socket.IO Setup ───────────────────────────────────────────────────────
+    // ── Fetch fleet drivers ────────────────────────────────────────────────
+    const fetchDrivers = useCallback(async () => {
+        try {
+            setLoadingDrivers(true);
+            setDriverError(null);
+            const response = await hiringService.getCompanyEmployees('ACTIVE');
+            setEmployees(response.data?.employments || []);
+        } catch (err) {
+            console.error('[monitoring] Failed to fetch drivers:', err);
+            setDriverError('Failed to load drivers. Please try again.');
+        } finally {
+            setLoadingDrivers(false);
+        }
+    }, []);
+
     useEffect(() => {
-        const socket = io(TRIP_SERVICE_URL, {
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-        });
+        fetchDrivers();
+    }, [fetchDrivers]);
 
-        socket.on('connect', () => {
-            console.log('[admin-monitoring] Socket connected:', socket.id);
-            setSocketReady(true);
+    // ── WebRTC: Listen for offer from driver ───────────────────────────────
+    useEffect(() => {
+        const socket = socketRef.current;
+        if (!socket) return;
 
-            // Join the fleet room so we receive targeted admin_monitoring events
-            const user = getUserFromStorage();
-            if (user.id) {
-                socket.emit('join-fleet-room', user.id);
-            }
-        });
-
-        socket.on('disconnect', () => {
-            console.log('[admin-monitoring] Socket disconnected');
-            setSocketReady(false);
-        });
-
-        // ── Receive driver telemetry ──────────────────────────────────────
-        socket.on('admin_monitoring', (data) => {
-            const { driverId, status, perclos, ear, timestamp } = data;
-            if (!driverId) return;
-
-            console.log('[admin-monitoring] Received:', data);
-
-            // Update driver status map
-            setDriverStatuses(prev => ({
-                ...prev,
-                [driverId]: {
-                    ...prev[driverId],
-                    driverId,
-                    status,
-                    perclos: perclos ?? 0,
-                    ear: ear ?? 0,
-                    timestamp: timestamp || new Date().toISOString(),
-                    lastSeen: new Date(),
-                },
-            }));
-
-            // Fire snackbar for DROWSY events
-            if (status === 'DROWSY') {
-                const alertId = `${driverId}-${Date.now()}`;
-                setAlerts(prev => [
-                    ...prev,
-                    { id: alertId, driverId, perclos, timestamp },
-                ]);
-            }
-        });
-
-        // ── WebRTC: Receive SDP offer from driver ─────────────────────────
-        socket.on('webrtc-offer', async (data) => {
+        const handleOffer = async (data) => {
             console.log('[WebRTC] Received offer from driver');
-            driverSocketRef.current = data.driverSocketId || null;
 
             const pc = new RTCPeerConnection(RTC_CONFIG);
             peerRef.current = pc;
@@ -134,7 +223,7 @@ const LiveMonitoringDashboard = () => {
             };
 
             pc.ontrack = (event) => {
-                console.log('[WebRTC] Track received from driver');
+                console.log('[WebRTC] Track received');
                 if (remoteVideoRef.current) {
                     remoteVideoRef.current.srcObject = event.streams[0];
                 }
@@ -142,7 +231,6 @@ const LiveMonitoringDashboard = () => {
             };
 
             pc.onconnectionstatechange = () => {
-                console.log('[WebRTC] Connection state:', pc.connectionState);
                 if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
                     setRtcState('error');
                 }
@@ -152,43 +240,41 @@ const LiveMonitoringDashboard = () => {
                 await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
-
                 socket.emit('webrtc-answer', {
                     sdp: pc.localDescription,
                     targetSocketId: data.targetSocketId || null,
                     driverId: data.driverId,
                 });
-                console.log('[WebRTC] Answer sent');
             } catch (err) {
                 console.error('[WebRTC] Answer error:', err);
                 setRtcState('error');
             }
-        });
+        };
 
-        // ── WebRTC: Receive ICE candidate from driver ─────────────────────
-        socket.on('webrtc-ice-candidate', async (data) => {
+        const handleIce = async (data) => {
             const pc = peerRef.current;
             if (!pc || !data.candidate) return;
-            try {
-                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-            } catch (err) {
-                console.error('[WebRTC] addIceCandidate error:', err);
-            }
-        });
+            try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); }
+            catch (err) { console.error('[WebRTC] addIceCandidate error:', err); }
+        };
 
-        socketRef.current = socket;
-        return () => socket.disconnect();
-    }, []);
+        socket.on('webrtc-offer', handleOffer);
+        socket.on('webrtc-ice-candidate', handleIce);
 
-    // ── Request WebRTC stream from driver ─────────────────────────────────────
-    const requestDriverVideo = useCallback((driverId) => {
+        return () => {
+            socket.off('webrtc-offer', handleOffer);
+            socket.off('webrtc-ice-candidate', handleIce);
+        };
+    }, [socketReady]);  // re-register when socket connects / reconnects
+
+    // ── Request video feed ─────────────────────────────────────────────────
+    const requestDriverVideo = useCallback((driverId, driverName) => {
         if (!socketRef.current?.connected) return;
 
-        setViewingDriver(driverId);
+        setViewingDriver({ id: driverId, name: driverName });
         setShowVideoModal(true);
         setRtcState('connecting');
 
-        // Close existing peer connection
         if (peerRef.current) {
             peerRef.current.close();
             peerRef.current = null;
@@ -198,204 +284,149 @@ const LiveMonitoringDashboard = () => {
             driverId,
             adminSocketId: socketRef.current.id,
         });
-        console.log('[WebRTC] Requested video from driver:', driverId);
     }, []);
 
-    // ── Close video modal ─────────────────────────────────────────────────────
+    // ── Close video modal ──────────────────────────────────────────────────
     const closeVideoModal = useCallback(() => {
-        if (peerRef.current) {
-            peerRef.current.close();
-            peerRef.current = null;
-        }
-        if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = null;
-        }
+        if (peerRef.current) { peerRef.current.close(); peerRef.current = null; }
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         setShowVideoModal(false);
         setViewingDriver(null);
         setRtcState('idle');
     }, []);
 
-    // ── Dismiss a snackbar alert ──────────────────────────────────────────────
-    const dismissAlert = useCallback((alertId) => {
-        setAlerts(prev => prev.filter(a => a.id !== alertId));
-    }, []);
+    // ── Counts ─────────────────────────────────────────────────────────────
+    const activeCount = employees.filter(emp => {
+        const id = emp.driverId?._id || emp.driverId?.userId;
+        return id && driverStatuses[id] && driverStatuses[id].status !== 'OFFLINE';
+    }).length;
 
-    // ── Helper ────────────────────────────────────────────────────────────────
-    const getUserFromStorage = () => {
-        try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
-    };
-
-    const formatTime = (iso) => {
-        if (!iso) return '—';
-        const d = new Date(iso);
-        return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    };
-
-    const formatDriverId = (id) => {
-        if (!id) return 'Unknown';
-        return typeof id === 'string' ? `${id.slice(0, 6)}…${id.slice(-4)}` : String(id).slice(0, 10);
-    };
-
-    const drivers = Object.values(driverStatuses);
+    const drowsyCount = Object.values(driverStatuses).filter(d => d.status === 'DROWSY').length;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Render
     // ─────────────────────────────────────────────────────────────────────────
     return (
         <div className="flex flex-col gap-6">
-            {/* ── Header ── */}
-            <div className="flex items-center justify-between">
+            {/* ── Header row ── */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Live Driver Monitoring</h1>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-gray-500 mt-0.5">
                         Real-time drowsiness alerts and video feed from active drivers
                     </p>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <span className={`w-2 h-2 rounded-full ${socketReady ? 'bg-green-500' : 'bg-red-400'}`} />
-                    {socketReady ? 'Live' : 'Disconnected'}
+
+                <div className="flex items-center gap-3 flex-wrap">
+                    {/* Socket status */}
+                    <span className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border ${socketReady
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : 'bg-red-50 text-red-600 border-red-200'
+                        }`}>
+                        {socketReady ? <Wifi size={12} /> : <WifiOff size={12} />}
+                        {socketReady ? 'Connected' : 'Disconnected'}
+                    </span>
+
+                    {/* Refresh */}
+                    <button
+                        onClick={fetchDrivers}
+                        disabled={loadingDrivers}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 bg-white border border-gray-200 rounded-full hover:border-gray-300 transition-colors disabled:opacity-50"
+                    >
+                        <RefreshCw size={12} className={loadingDrivers ? 'animate-spin' : ''} />
+                        Refresh
+                    </button>
                 </div>
             </div>
 
-            {/* ── Empty State ── */}
-            {drivers.length === 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl p-12 flex flex-col items-center justify-center text-center">
-                    <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    <p className="text-gray-700 font-medium mb-2">No active monitoring sessions</p>
-                    <p className="text-gray-500 text-sm max-w-sm">
-                        Waiting for drivers to start monitoring. Driver status will appear here in real-time.
+            {/* ── Summary stats ── */}
+            {!loadingDrivers && employees.length > 0 && (
+                <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                            <User size={18} className="text-gray-500" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
+                            <p className="text-xs text-gray-500">Total Drivers</p>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-xl border border-green-200 p-4 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+                            <Eye size={18} className="text-green-600" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-green-700">{activeCount}</p>
+                            <p className="text-xs text-gray-500">Monitoring Active</p>
+                        </div>
+                    </div>
+                    <div className={`bg-white rounded-xl border p-4 flex items-center gap-3 ${drowsyCount > 0 ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}>
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${drowsyCount > 0 ? 'bg-red-100' : 'bg-gray-100'
+                            }`}>
+                            <AlertTriangle size={18} className={drowsyCount > 0 ? 'text-red-600' : 'text-gray-400'} />
+                        </div>
+                        <div>
+                            <p className={`text-2xl font-bold ${drowsyCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                                {drowsyCount}
+                            </p>
+                            <p className="text-xs text-gray-500">Drowsy Alerts</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Loading ── */}
+            {loadingDrivers && (
+                <div className="bg-white border border-gray-200 rounded-2xl p-12 flex flex-col items-center justify-center">
+                    <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4" />
+                    <p className="text-gray-500 text-sm">Loading your drivers…</p>
+                </div>
+            )}
+
+            {/* ── Error ── */}
+            {driverError && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-center gap-4">
+                    <AlertTriangle size={22} className="text-red-500 flex-shrink-0" />
+                    <div>
+                        <p className="text-red-800 font-medium">{driverError}</p>
+                        <button onClick={fetchDrivers} className="mt-1 text-sm text-red-600 underline">
+                            Try again
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Empty state: no drivers hired ── */}
+            {!loadingDrivers && !driverError && employees.length === 0 && (
+                <div className="bg-white border border-gray-200 rounded-2xl p-12 flex flex-col items-center justify-center text-center">
+                    <EyeOff size={48} className="text-gray-300 mb-4" />
+                    <p className="text-gray-700 font-semibold text-lg mb-1">No drivers hired yet</p>
+                    <p className="text-gray-400 text-sm max-w-xs">
+                        Go to <strong>My Drivers</strong> and hire drivers to see their monitoring status here.
                     </p>
                 </div>
             )}
 
-            {/* ── Driver Status Grid ── */}
-            {drivers.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {drivers.map((driver) => {
-                        const isDrowsy = driver.status === 'DROWSY';
-                        const perclosPct = Math.min((driver.perclos || 0) * 100, 100);
-                        const earVal = driver.ear || 0;
+            {/* ── Driver cards grid ── */}
+            {!loadingDrivers && !driverError && employees.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {employees.map((employment) => {
+                        const driver = employment.driverId;
+                        const driverId = driver?._id || driver?.userId;
+                        const liveData = driverId ? driverStatuses[driverId] : null;
 
                         return (
-                            <div
-                                key={driver.driverId}
-                                className={`rounded-xl border overflow-hidden shadow-sm transition-all duration-300 ${isDrowsy
-                                        ? 'border-red-300 bg-red-50 shadow-red-100'
-                                        : 'border-gray-200 bg-white'
-                                    }`}
-                            >
-                                {/* Card Header */}
-                                <div className={`px-4 py-3 flex items-center justify-between ${isDrowsy ? 'bg-red-500' : 'bg-gray-800'
-                                    }`}>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-white/70">Driver ID</p>
-                                            <p className="text-sm font-mono text-white">{formatDriverId(driver.driverId)}</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Status badge */}
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isDrowsy
-                                            ? 'bg-white text-red-600 animate-pulse'
-                                            : 'bg-green-500 text-white'
-                                        }`}>
-                                        {driver.status}
-                                    </span>
-                                </div>
-
-                                {/* Card Body */}
-                                <div className="p-4 space-y-3">
-                                    {/* PERCLOS bar */}
-                                    <div>
-                                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                            <span>PERCLOS</span>
-                                            <span className={isDrowsy ? 'text-red-600 font-medium' : ''}>
-                                                {perclosPct.toFixed(1)}%
-                                            </span>
-                                        </div>
-                                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                            <div
-                                                className={`h-full rounded-full transition-all duration-500 ${isDrowsy ? 'bg-red-500' : 'bg-amber-400'
-                                                    }`}
-                                                style={{ width: `${perclosPct}%` }}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* EAR */}
-                                    <div className="flex justify-between text-xs">
-                                        <span className="text-gray-500">EAR (Eye Aspect Ratio)</span>
-                                        <span className={`font-mono font-medium ${earVal < 0.22 ? 'text-red-600' : 'text-gray-700'}`}>
-                                            {earVal.toFixed(3)}
-                                        </span>
-                                    </div>
-
-                                    {/* Last update */}
-                                    <div className="flex justify-between text-xs">
-                                        <span className="text-gray-400">Last update</span>
-                                        <span className="text-gray-600">{formatTime(driver.timestamp)}</span>
-                                    </div>
-
-                                    {/* Action buttons */}
-                                    <div className="flex gap-2 pt-1">
-                                        <button
-                                            onClick={() => requestDriverVideo(driver.driverId)}
-                                            className="flex-1 py-2 text-xs font-medium bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center gap-1.5"
-                                        >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                    d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M4 8a2 2 0 00-2 2v4a2 2 0 002 2h8a2 2 0 002-2V10a2 2 0 00-2-2H4z" />
-                                            </svg>
-                                            Live Video
-                                        </button>
-                                        {isDrowsy && (
-                                            <div className="flex-1 py-2 text-xs font-bold bg-red-100 text-red-700 rounded-lg flex items-center justify-center gap-1.5 animate-pulse">
-                                                ⚠️ DROWSY
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
+                            <DriverCard
+                                key={employment._id}
+                                employment={employment}
+                                liveData={liveData && liveData.status !== 'OFFLINE' ? liveData : null}
+                                onRequestVideo={requestDriverVideo}
+                            />
                         );
                     })}
                 </div>
             )}
-
-            {/* ── Drowsiness Snackbar Alerts ── */}
-            {alerts.map((alert) => (
-                <Snackbar
-                    key={alert.id}
-                    open={true}
-                    anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-                    onClose={() => dismissAlert(alert.id)}
-                    autoHideDuration={12000}
-                >
-                    <MuiAlert
-                        severity="error"
-                        variant="filled"
-                        onClose={() => dismissAlert(alert.id)}
-                        sx={{ minWidth: 320 }}
-                    >
-                        <AlertTitle>🚨 Drowsiness Alert</AlertTitle>
-                        Driver <strong>{formatDriverId(alert.driverId)}</strong> is showing signs of drowsiness.
-                        <br />
-                        <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>
-                            PERCLOS: {((alert.perclos || 0) * 100).toFixed(1)}% · {formatTime(alert.timestamp)}
-                        </span>
-                    </MuiAlert>
-                </Snackbar>
-            ))}
 
             {/* ── WebRTC Video Modal ── */}
             {showVideoModal && (
@@ -406,11 +437,12 @@ const LiveMonitoringDashboard = () => {
                             <div>
                                 <p className="text-white font-semibold">Live Driver Feed</p>
                                 <p className="text-gray-400 text-xs mt-0.5">
-                                    Driver: {formatDriverId(viewingDriver)} ·
-                                    <span className={`ml-1 ${rtcState === 'connected' ? 'text-green-400' :
+                                    {viewingDriver?.name} ·{' '}
+                                    <span className={
+                                        rtcState === 'connected' ? 'text-green-400' :
                                             rtcState === 'connecting' ? 'text-amber-400' :
                                                 rtcState === 'error' ? 'text-red-400' : 'text-gray-400'
-                                        }`}>
+                                    }>
                                         {rtcState === 'connected' ? '● Connected' :
                                             rtcState === 'connecting' ? '⟳ Connecting…' :
                                                 rtcState === 'error' ? '✕ Error' : 'Idle'}
@@ -427,7 +459,7 @@ const LiveMonitoringDashboard = () => {
                             </button>
                         </div>
 
-                        {/* Video */}
+                        {/* Video area */}
                         <div className="relative bg-black aspect-video flex items-center justify-center">
                             <video
                                 ref={remoteVideoRef}
@@ -435,7 +467,6 @@ const LiveMonitoringDashboard = () => {
                                 playsInline
                                 className="w-full h-full object-cover"
                             />
-
                             {rtcState !== 'connected' && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                                     {rtcState === 'connecting' ? (
@@ -458,27 +489,27 @@ const LiveMonitoringDashboard = () => {
                             )}
                         </div>
 
-                        {/* Driver status in modal */}
-                        {viewingDriver && driverStatuses[viewingDriver] && (
+                        {/* Live telemetry strip */}
+                        {viewingDriver && driverStatuses[viewingDriver.id] && (
                             <div className="px-5 py-3 bg-gray-800 flex items-center gap-6 text-sm">
                                 <div>
                                     <span className="text-gray-400 text-xs">Status</span>
-                                    <div className={`font-bold mt-0.5 ${driverStatuses[viewingDriver].status === 'DROWSY'
-                                            ? 'text-red-400' : 'text-green-400'
+                                    <div className={`font-bold mt-0.5 ${driverStatuses[viewingDriver.id].status === 'DROWSY'
+                                        ? 'text-red-400' : 'text-green-400'
                                         }`}>
-                                        {driverStatuses[viewingDriver].status}
+                                        {driverStatuses[viewingDriver.id].status}
                                     </div>
                                 </div>
                                 <div>
                                     <span className="text-gray-400 text-xs">PERCLOS</span>
                                     <div className="text-white font-medium mt-0.5">
-                                        {((driverStatuses[viewingDriver].perclos || 0) * 100).toFixed(1)}%
+                                        {((driverStatuses[viewingDriver.id].perclos || 0) * 100).toFixed(1)}%
                                     </div>
                                 </div>
                                 <div>
                                     <span className="text-gray-400 text-xs">EAR</span>
                                     <div className="text-white font-medium mt-0.5 font-mono">
-                                        {(driverStatuses[viewingDriver].ear || 0).toFixed(3)}
+                                        {(driverStatuses[viewingDriver.id].ear || 0).toFixed(3)}
                                     </div>
                                 </div>
                             </div>

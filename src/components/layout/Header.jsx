@@ -57,6 +57,8 @@ const Header = ({ onLogout }) => {
             return { title: 'Reports', subtitle: 'View analytics and reports' };
         } else if (path === '/business/settings') {
             return { title: 'Profile', subtitle: 'Manage your account information' };
+        } else if (path === '/business/monitoring') {
+            return { title: 'Live Monitoring', subtitle: 'Real-time drowsiness detection for your drivers' };
         }
 
         // Driver routes
