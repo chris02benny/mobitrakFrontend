@@ -67,8 +67,9 @@ const MonitoringAlertProvider = ({ children }) => {
         if (!isFleetManager) return; // skip for drivers / admins
 
         const socket = io(TRIP_SERVICE_URL, {
-            transports: ['websocket', 'polling'],
             reconnection: true,
+            // Allow polling fallback since AWS API Gateway HTTP APIs don't natively support WebSockets
+            transports: ['polling', 'websocket'],
         });
 
         socket.on('connect', () => {

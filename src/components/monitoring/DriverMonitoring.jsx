@@ -111,8 +111,8 @@ const DriverMonitoring = () => {
     // ── Socket.IO Connection ──────────────────────────────────────────────────
     useEffect(() => {
         const socket = io(TRIP_SERVICE_URL, {
-            transports: ['websocket', 'polling'],
             reconnection: true,
+            transports: ['polling', 'websocket'],
         });
 
         socket.on('connect', () => {
