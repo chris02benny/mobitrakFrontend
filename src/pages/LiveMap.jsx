@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, MapPin, Building2, Truck, User, Filter, Navigation, Gauge } from 'lucide-react';
-import { io } from 'socket.io-client';
+import Pusher from 'pusher-js';
 import MapView from '../components/common/MapView';
 import LocationDetailModal from '../components/common/LocationDetailModal';
 import { authService } from '../services/authService';
@@ -22,79 +22,47 @@ const LiveMap = () => {
     const [vehiclesData, setVehiclesData] = useState([]);
     const [driversData, setDriversData] = useState([]);
     const [profileData, setProfileData] = useState(null);
-    const [socket, setSocket] = useState(null);
-    const [userSocket, setUserSocket] = useState(null); // Socket for user-service
+    const [socket, setSocket] = useState(null); // kept for compat, unused
+    const [userSocket, setUserSocket] = useState(null); // kept for compat, unused
+    const [pusherClient, setPusherClient] = useState(null);
     const [traccarPositions, setTraccarPositions] = useState({});
     const [traccarInterval, setTraccarInterval] = useState(null);
     const [mapUpdateKey, setMapUpdateKey] = useState(0);
 
-    // Initialize Socket.IO connection to trip-service
+    // Initialize Pusher connection for real-time location + office updates
     useEffect(() => {
-        const TRIP_SERVICE_URL = import.meta.env.VITE_TRIP_SERVICE_URL || import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
-        const newSocket = io(TRIP_SERVICE_URL, {
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionAttempts: 5
-        });
+        const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY || '3c443eb0dc81a17f2142';
+        const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
 
-        newSocket.on('connect', () => {
-            console.log('Socket.IO connected to trip-service');
-            // Join fleet room with user ID
-            const user = JSON.parse(localStorage.getItem('user') || '{}');
-            if (user.id) {
-                newSocket.emit('join-fleet-room', user.id);
-            }
-        });
+        const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
+        setPusherClient(pusher);
 
-        newSocket.on('disconnect', () => {
-            console.log('Socket.IO disconnected from trip-service');
-        });
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user?.id || user?._id;
 
-        newSocket.on('location-update', (locationData) => {
-            console.log('Location update received:', locationData);
+        // Subscribe to global monitoring channel
+        const globalChannel = pusher.subscribe('global-monitoring');
+        globalChannel.bind('location-update', (locationData) => {
+            console.log('Location update received via Pusher:', locationData);
             handleLocationUpdate(locationData);
         });
-
-        setSocket(newSocket);
-
-        return () => {
-            newSocket.disconnect();
-        };
-    }, []);
-
-    // Initialize Socket.IO connection to user-service for profile updates
-    useEffect(() => {
-        const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
-        const newUserSocket = io(USER_SERVICE_URL, {
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionAttempts: 5
-        });
-
-        newUserSocket.on('connect', () => {
-            console.log('Socket.IO connected to user-service');
-            // Join user room with user ID
-            const user = JSON.parse(localStorage.getItem('user') || '{}');
-            if (user.id) {
-                newUserSocket.emit('join-user-room', user.id);
-            }
-        });
-
-        newUserSocket.on('disconnect', () => {
-            console.log('Socket.IO disconnected from user-service');
-        });
-
-        newUserSocket.on('office-location-update', (data) => {
-            console.log('Office location update received:', data);
+        globalChannel.bind('office-location-update', (data) => {
+            console.log('Office location update received via Pusher:', data);
             handleOfficeLocationUpdate(data);
         });
 
-        setUserSocket(newUserSocket);
+        // Also subscribe to this fleet manager's channel
+        if (userId) {
+            const fleetChannel = pusher.subscribe(`fleet-${userId}`);
+            fleetChannel.bind('location-update', (locationData) => {
+                handleLocationUpdate(locationData);
+            });
+        }
 
         return () => {
-            newUserSocket.disconnect();
+            pusher.unsubscribe('global-monitoring');
+            if (userId) pusher.unsubscribe(`fleet-${userId}`);
+            pusher.disconnect();
         };
     }, []);
 

@@ -2,11 +2,15 @@
  * MonitoringAlertProvider.jsx
  *
  * Global context that:
- *  1. Connects to the trip-service Socket.IO server once (for the entire app session).
- *  2. Joins the fleet-manager's room so drowsiness events are delivered.
- *  3. Fires a react-hot-toast alert on ANY page when a DROWSY event arrives.
- *  4. Exposes `useMonitoringContext()` so the LiveMonitoringDashboard can reuse
- *     the same socket + driverStatuses state without creating a second connection.
+ *  1. Connects to Pusher once (for the entire app session) for fleet managers.
+ *  2. Subscribes to "global-monitoring" channel to receive drowsiness events from all drivers.
+ *  3. Also subscribes to "fleet-{managerId}" for fleet-manager-specific events.
+ *  4. Fires a react-hot-toast alert on ANY page when a DROWSY event arrives.
+ *  5. Exposes `useMonitoringContext()` so the LiveMonitoringDashboard can reuse
+ *     the same Pusher channel + driverStatuses state without creating a second connection.
+ *
+ * NOTE: Pusher replaces Socket.IO. The "global-monitoring" channel is subscribed
+ * to by all fleet managers; the backend triggers events on it via Pusher SDK.
  */
 
 import React, {
@@ -15,17 +19,14 @@ import React, {
     useEffect,
     useRef,
     useState,
-    useCallback,
 } from 'react';
-import { io } from 'socket.io-client';
+import Pusher from 'pusher-js';
 import toast from 'react-hot-toast';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TRIP_SERVICE_URL =
-    import.meta.env.VITE_TRIP_SERVICE_URL ||
-    import.meta.env.VITE_API_URL ||
-    'http://localhost:5004';
+const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY || '3c443eb0dc81a17f2142';
+const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,8 @@ const formatDriverId = (id) => {
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 const MonitoringAlertProvider = ({ children }) => {
-    const socketRef = useRef(null);
+    const pusherRef = useRef(null);
+    const channelRef = useRef(null);
 
     /** Map of driverId → latest telemetry { status, perclos, ear, timestamp, lastSeen } */
     const [driverStatuses, setDriverStatuses] = useState({});
@@ -64,88 +66,103 @@ const MonitoringAlertProvider = ({ children }) => {
         localStorage.getItem('userRole') === 'fleetmanager';
 
     useEffect(() => {
-        if (!isFleetManager) return; // skip for drivers / admins
+        if (!isFleetManager) return;
 
-        const socket = io(TRIP_SERVICE_URL, {
-            reconnection: true,
-            // Allow polling fallback since AWS API Gateway HTTP APIs don't natively support WebSockets
-            transports: ['polling', 'websocket'],
+        // Connect to Pusher
+        const pusherClient = new Pusher(PUSHER_KEY, {
+            cluster: PUSHER_CLUSTER,
         });
 
-        socket.on('connect', () => {
-            console.log('[MonitoringProvider] Socket connected:', socket.id);
+        pusherRef.current = pusherClient;
+
+        pusherClient.connection.bind('connected', () => {
+            console.log('[MonitoringProvider] Pusher connected');
             setSocketReady(true);
-
-            const u = getUserFromStorage();
-            if (u?.id || u?._id) {
-                socket.emit('join-fleet-room', u.id || u._id);
-            }
         });
 
-        socket.on('disconnect', () => {
-            console.log('[MonitoringProvider] Socket disconnected');
+        pusherClient.connection.bind('disconnected', () => {
+            console.log('[MonitoringProvider] Pusher disconnected');
             setSocketReady(false);
         });
 
-        // ── Receive driver telemetry ──────────────────────────────────────
-        socket.on('admin_monitoring', (data) => {
-            const { driverId, status, perclos, ear, timestamp, driverName } = data;
-            if (!driverId) return;
+        // Subscribe to global monitoring channel (all drivers broadcast here)
+        const globalChannel = pusherClient.subscribe('global-monitoring');
+        channelRef.current = globalChannel;
 
-            // Update driver status map
-            setDriverStatuses(prev => ({
-                ...prev,
-                [driverId]: {
-                    ...prev[driverId],
-                    driverId,
-                    driverName: driverName || null,
-                    status,
-                    perclos: perclos ?? 0,
-                    ear: ear ?? 0,
-                    timestamp: timestamp || new Date().toISOString(),
-                    lastSeen: new Date(),
-                },
-            }));
+        // Also subscribe to this fleet manager's private channel
+        const u = getUserFromStorage();
+        const managerId = u?.id || u?._id;
+        if (managerId) {
+            const fleetChannel = pusherClient.subscribe(`fleet-${managerId}`);
+            // Bind admin_monitoring on fleet channel too (data arrives on both)
+            fleetChannel.bind('admin_monitoring', handleMonitoringData);
+        }
 
-            // Global alert toast for DROWSY — shown on ANY page
-            if (status === 'DROWSY') {
-                const name = driverName || formatDriverId(driverId);
-                const perclosPct = ((perclos || 0) * 100).toFixed(1);
-
-                toast.error(
-                    (t) => (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <strong style={{ fontSize: '0.95rem' }}>
-                                🚨 Drowsiness Alert
-                            </strong>
-                            <span style={{ fontSize: '0.85rem' }}>
-                                <strong>{name}</strong> is showing signs of drowsiness.
-                            </span>
-                            <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>
-                                PERCLOS: {perclosPct}%
-                            </span>
-                        </div>
-                    ),
-                    {
-                        duration: 10000,
-                        id: `drowsy-${driverId}`, // deduplicate rapid-fire events
-                        style: {
-                            background: '#dc2626',
-                            color: '#fff',
-                            maxWidth: 360,
-                        },
-                    }
-                );
-            }
-        });
-
-        socketRef.current = socket;
+        // Bind admin_monitoring event on global channel
+        globalChannel.bind('admin_monitoring', handleMonitoringData);
 
         return () => {
-            socket.disconnect();
-            socketRef.current = null;
+            globalChannel.unbind_all();
+            pusherClient.unsubscribe('global-monitoring');
+            if (managerId) {
+                pusherClient.unsubscribe(`fleet-${managerId}`);
+            }
+            pusherClient.disconnect();
+            pusherRef.current = null;
+            channelRef.current = null;
         };
     }, [isFleetManager]);
+
+    // ── Handle incoming monitoring data ───────────────────────────────────────
+    function handleMonitoringData(data) {
+        const { driverId, status, perclos, ear, timestamp, driverName } = data;
+        if (!driverId) return;
+
+        setDriverStatuses(prev => ({
+            ...prev,
+            [driverId]: {
+                ...prev[driverId],
+                driverId,
+                driverName: driverName || null,
+                status,
+                perclos: perclos ?? 0,
+                ear: ear ?? 0,
+                timestamp: timestamp || new Date().toISOString(),
+                lastSeen: new Date(),
+            },
+        }));
+
+        // Global alert toast for DROWSY — shown on ANY page
+        if (status === 'DROWSY') {
+            const name = driverName || formatDriverId(driverId);
+            const perclosPct = ((perclos || 0) * 100).toFixed(1);
+
+            toast.error(
+                (t) => (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <strong style={{ fontSize: '0.95rem' }}>
+                            🚨 Drowsiness Alert
+                        </strong>
+                        <span style={{ fontSize: '0.85rem' }}>
+                            <strong>{name}</strong> is showing signs of drowsiness.
+                        </span>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                            PERCLOS: {perclosPct}%
+                        </span>
+                    </div>
+                ),
+                {
+                    duration: 10000,
+                    id: `drowsy-${driverId}`,
+                    style: {
+                        background: '#dc2626',
+                        color: '#fff',
+                        maxWidth: 360,
+                    },
+                }
+            );
+        }
+    }
 
     // ── Mark driver as offline if no update in >30 s ──────────────────────
     useEffect(() => {
@@ -169,7 +186,7 @@ const MonitoringAlertProvider = ({ children }) => {
     }, []);
 
     const value = {
-        socketRef,
+        pusherRef,
         socketReady,
         driverStatuses,
     };

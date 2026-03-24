@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, MapPin, ArrowRight, Truck, User, Navigation, Building2, Menu, Search, X } from 'lucide-react';
-import { io } from 'socket.io-client';
+import Pusher from 'pusher-js';
 import MapView from '../common/MapView';
 import { authService } from '../../services/authService';
 import { vehicleService } from '../../services/vehicleService';
@@ -28,73 +28,38 @@ const LiveFleetMap = ({ isFullPage = false }) => {
     const [socket, setSocket] = useState(null);
     const [userSocket, setUserSocket] = useState(null);
 
-    // Initialize Socket.IO connection to trip-service
+    // Initialize Pusher connection for real-time location + office updates
     useEffect(() => {
-        // Use VITE_TRIP_SERVICE_URL or fallback to VITE_API_URL
-        const TRIP_SERVICE_URL = import.meta.env.VITE_TRIP_SERVICE_URL || import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
-        const newSocket = io(TRIP_SERVICE_URL, {
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionAttempts: 5
-        });
+        const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY || '3c443eb0dc81a17f2142';
+        const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
 
-        newSocket.on('connect', () => {
-            console.log('Socket.IO connected to trip-service');
-            const user = JSON.parse(localStorage.getItem('user') || '{}');
-            if (user.id) {
-                newSocket.emit('join-fleet-room', user.id);
-            }
-        });
+        const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
 
-        newSocket.on('disconnect', () => {
-            console.log('Socket.IO disconnected from trip-service');
-        });
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user?.id || user?._id;
 
-        newSocket.on('location-update', (locationData) => {
-            console.log('Location update received:', locationData);
+        // Subscribe to global monitoring channel
+        const globalChannel = pusher.subscribe('global-monitoring');
+        globalChannel.bind('location-update', (locationData) => {
+            console.log('Location update received via Pusher:', locationData);
             handleLocationUpdate(locationData);
         });
-
-        setSocket(newSocket);
-
-        return () => {
-            newSocket.disconnect();
-        };
-    }, []);
-
-    // Initialize Socket.IO connection to user-service
-    useEffect(() => {
-        // Use VITE_USER_SERVICE_URL or fallback to VITE_API_URL
-        const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
-        const newUserSocket = io(USER_SERVICE_URL, {
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionAttempts: 5
-        });
-
-        newUserSocket.on('connect', () => {
-            console.log('Socket.IO connected to user-service');
-            const user = JSON.parse(localStorage.getItem('user') || '{}');
-            if (user.id) {
-                newUserSocket.emit('join-user-room', user.id);
-            }
-        });
-
-        newUserSocket.on('disconnect', () => {
-            console.log('Socket.IO disconnected from user-service');
-        });
-
-        newUserSocket.on('office-location-update', (data) => {
-            console.log('Office location update received:', data);
+        globalChannel.bind('office-location-update', (data) => {
             handleOfficeLocationUpdate(data);
         });
 
-        setUserSocket(newUserSocket);
+        // Also subscribe to this fleet manager's specific channel
+        if (userId) {
+            const fleetChannel = pusher.subscribe(`fleet-${userId}`);
+            fleetChannel.bind('location-update', (locationData) => {
+                handleLocationUpdate(locationData);
+            });
+        }
 
         return () => {
-            newUserSocket.disconnect();
+            pusher.unsubscribe('global-monitoring');
+            if (userId) pusher.unsubscribe(`fleet-${userId}`);
+            pusher.disconnect();
         };
     }, []);
 

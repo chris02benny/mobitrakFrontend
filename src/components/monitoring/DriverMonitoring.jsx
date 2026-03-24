@@ -6,8 +6,8 @@
  *  - Camera access via getUserMedia
  *  - MediaPipe FaceMesh (loaded from CDN) for facial landmark detection
  *  - EAR + PERCLOS computation using drowsinessUtils
- *  - Socket.IO event emission: "driver_monitoring"
- *  - WebRTC peer-to-peer video stream to admin
+ *  - Pusher-based real-time events via REST API POST to /api/realtime/driver-monitoring
+ *  - WebRTC peer-to-peer video stream to admin (signaling via Pusher)
  *  - Picture-in-Picture toggle
  *  - Throttled frame processing (~10 fps)
  */
@@ -18,7 +18,7 @@ import React, {
     useEffect,
     useCallback,
 } from 'react';
-import { io } from 'socket.io-client';
+import Pusher from 'pusher-js';
 import {
     computeMeanEAR,
     computePERCLOS,
@@ -30,23 +30,22 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TRIP_SERVICE_URL =
+const API_BASE_URL =
     import.meta.env.VITE_TRIP_SERVICE_URL ||
     import.meta.env.VITE_API_URL ||
-    'http://localhost:5004';
+    'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
+
+const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY || '3c443eb0dc81a17f2142';
+const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
 
 /** Target detection rate (ms between processed frames) */
 const FRAME_INTERVAL_MS = 100; // ~10 fps
 
-/** Emit socket event at most every N ms, or when status changes */
+/** Emit telemetry at most every N ms, or when status changes */
 const EMIT_INTERVAL_MS = 8000;
 
 // ─── MediaPipe CDN Loader ─────────────────────────────────────────────────────
 
-/**
- * Dynamically loads a script from CDN if not already loaded.
- * Returns a Promise that resolves when the script is ready.
- */
 function loadScript(src) {
     return new Promise((resolve, reject) => {
         if (document.querySelector(`script[src="${src}"]`)) {
@@ -73,6 +72,46 @@ const RTC_CONFIG = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const getUser = () => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+};
+
+// Post telemetry to backend which then triggers Pusher
+async function postTelemetry(payload) {
+    try {
+        const token = localStorage.getItem('authToken');
+        await fetch(`${API_BASE_URL}/api/realtime/driver-monitoring`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(payload),
+        });
+    } catch (err) {
+        console.error('[monitoring] Failed to post telemetry:', err.message);
+    }
+}
+
+// Post WebRTC signal to backend which then triggers Pusher
+async function postWebRTCSignal(event, driverId, data) {
+    try {
+        const token = localStorage.getItem('authToken');
+        await fetch(`${API_BASE_URL}/api/realtime/webrtc`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ event, driverId, data }),
+        });
+    } catch (err) {
+        console.error('[WebRTC] Failed to post signal:', err.message);
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,14 +123,15 @@ const DriverMonitoring = () => {
     const streamRef = useRef(null);   // MediaStream from camera
     const faceMeshRef = useRef(null);   // MediaPipe FaceMesh instance
     const cameraRef = useRef(null);   // MediaPipe Camera helper
-    const socketRef = useRef(null);   // Socket.IO connection
+    const pusherRef = useRef(null);   // Pusher client instance
+    const channelRef = useRef(null);  // Subscribed Pusher channel
     const peerRef = useRef(null);   // RTCPeerConnection
 
     const earHistoryRef = useRef([]);           // sliding window of EAR values
     const lastFrameTimeRef = useRef(0);            // timestamp throttle
     const lastEmitTimeRef = useRef(0);            // emit throttle
     const lastStatusRef = useRef('ALERT');      // previous status for change detection
-    const adminSocketIdRef = useRef(null);         // target socket for WebRTC offer
+    const adminIdRef = useRef(null);            // admin userId for WebRTC
 
     // ── State ──────────────────────────────────────────────────────────────────
     const [isMonitoring, setIsMonitoring] = useState(false);
@@ -103,46 +143,46 @@ const DriverMonitoring = () => {
     const [isPiP, setIsPiP] = useState(false);
     const [socketReady, setSocketReady] = useState(false);
 
-    // ── Helpers from localStorage ─────────────────────────────────────────────
-    const getUser = () => {
-        try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
-    };
-
-    // ── Socket.IO Connection ──────────────────────────────────────────────────
+    // ── Pusher Connection ──────────────────────────────────────────────────────
     useEffect(() => {
-        const socket = io(TRIP_SERVICE_URL, {
-            reconnection: true,
-            transports: ['polling', 'websocket'],
+        const user = getUser();
+        if (!user?.id) return;
+
+        // Connect to Pusher
+        const pusherClient = new Pusher(PUSHER_KEY, {
+            cluster: PUSHER_CLUSTER,
         });
 
-        socket.on('connect', () => {
-            console.log('[monitoring] Socket connected:', socket.id);
-            const user = getUser();
-            if (user.id) {
-                socket.emit('join-monitoring-room', user.id);
-            }
+        pusherRef.current = pusherClient;
+
+        pusherClient.connection.bind('connected', () => {
+            console.log('[monitoring] Pusher connected');
             setSocketReady(true);
         });
 
-        socket.on('disconnect', () => {
-            console.log('[monitoring] Socket disconnected');
+        pusherClient.connection.bind('disconnected', () => {
+            console.log('[monitoring] Pusher disconnected');
             setSocketReady(false);
         });
 
+        // Subscribe to this driver's monitoring channel
+        const channel = pusherClient.subscribe(`monitoring-driver-${user.id}`);
+        channelRef.current = channel;
+
         // ── WebRTC: Admin requested our video ──────────────────────────────
-        socket.on('webrtc-start', async (data) => {
-            console.log('[WebRTC] Admin requested video, admin socketId:', data.adminSocketId);
-            adminSocketIdRef.current = data.adminSocketId;
+        channel.bind('webrtc-start', async (data) => {
+            console.log('[WebRTC] Admin requested video, adminId:', data.adminId);
+            adminIdRef.current = data.adminId;
 
             if (!streamRef.current) {
                 console.warn('[WebRTC] No stream available yet');
                 return;
             }
-            await initiateWebRTCOffer(data.adminSocketId);
+            await initiateWebRTCOffer(data.adminId);
         });
 
         // ── WebRTC: Receive admin's SDP answer ────────────────────────────
-        socket.on('webrtc-answer', async (data) => {
+        channel.bind('webrtc-answer', async (data) => {
             const pc = peerRef.current;
             if (!pc) return;
             try {
@@ -154,7 +194,7 @@ const DriverMonitoring = () => {
         });
 
         // ── WebRTC: Receive ICE candidate from admin ──────────────────────
-        socket.on('webrtc-ice-candidate', async (data) => {
+        channel.bind('webrtc-ice-candidate', async (data) => {
             const pc = peerRef.current;
             if (!pc || !data.candidate) return;
             try {
@@ -164,16 +204,17 @@ const DriverMonitoring = () => {
             }
         });
 
-        socketRef.current = socket;
-
         return () => {
-            socket.disconnect();
+            channel.unbind_all();
+            pusherClient.unsubscribe(`monitoring-driver-${user.id}`);
+            pusherClient.disconnect();
+            pusherRef.current = null;
+            channelRef.current = null;
         };
     }, []);
 
     // ── WebRTC: Create offer ──────────────────────────────────────────────────
-    const initiateWebRTCOffer = useCallback(async (adminSocketId) => {
-        // Clean up previous peer connection if any
+    const initiateWebRTCOffer = useCallback(async (adminId) => {
         if (peerRef.current) {
             peerRef.current.close();
         }
@@ -181,33 +222,34 @@ const DriverMonitoring = () => {
         const pc = new RTCPeerConnection(RTC_CONFIG);
         peerRef.current = pc;
 
-        // Add all local video tracks
         const stream = streamRef.current;
         if (stream) {
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
         }
 
-        // ICE candidate handler
+        const user = getUser();
+
+        // ICE candidate handler — relay via backend → Pusher
         pc.onicecandidate = (event) => {
-            if (event.candidate && socketRef.current) {
-                socketRef.current.emit('webrtc-ice-candidate', {
+            if (event.candidate) {
+                postWebRTCSignal('webrtc-ice-candidate', user.id, {
                     candidate: event.candidate,
-                    targetSocketId: adminSocketId,
+                    adminId,
+                    targetType: 'admin',
                 });
             }
         };
 
-        // Create and send SDP offer
         try {
             const offer = await pc.createOffer({ offerToReceiveVideo: false });
             await pc.setLocalDescription(offer);
 
-            socketRef.current?.emit('webrtc-offer', {
+            await postWebRTCSignal('webrtc-offer', user.id, {
                 sdp: pc.localDescription,
-                targetSocketId: adminSocketId,
-                driverId: getUser().id,
+                adminId,
+                driverId: user.id,
             });
-            console.log('[WebRTC] Offer sent to admin:', adminSocketId);
+            console.log('[WebRTC] Offer sent to admin:', adminId);
         } catch (err) {
             console.error('[WebRTC] createOffer error:', err);
         }
@@ -215,43 +257,33 @@ const DriverMonitoring = () => {
 
     // ── MediaPipe FaceMesh: Process results ───────────────────────────────────
     const onFaceMeshResults = useCallback((results) => {
-        // Throttle: only process every FRAME_INTERVAL_MS
         const now = performance.now();
         if (now - lastFrameTimeRef.current < FRAME_INTERVAL_MS) return;
         lastFrameTimeRef.current = now;
 
         if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-            return; // No face detected
+            return;
         }
 
         const landmarks = results.multiFaceLandmarks[0];
-
-        // Compute EAR for this frame
         const meanEAR = computeMeanEAR(landmarks);
-
-        // Update sliding window
         earHistoryRef.current = pushEARHistory(earHistoryRef.current, meanEAR);
-
-        // Compute PERCLOS over window
         const currentPerclos = computePERCLOS(earHistoryRef.current);
-
-        // Determine status
         const currentStatus = getDrowsinessStatus(currentPerclos);
 
-        // Update React state for UI display
         setEar(parseFloat(meanEAR.toFixed(3)));
         setPerclos(parseFloat(currentPerclos.toFixed(3)));
         setStatus(currentStatus);
 
-        // Emit socket event if status changed OR periodic interval elapsed
         const statusChanged = currentStatus !== lastStatusRef.current;
         const intervalElapsed = now - lastEmitTimeRef.current > EMIT_INTERVAL_MS;
 
-        if ((statusChanged || intervalElapsed) && socketRef.current?.connected) {
+        if (statusChanged || intervalElapsed) {
             const user = getUser();
             const activeTripId = sessionStorage.getItem('activeTripId') || null;
 
-            socketRef.current.emit('driver_monitoring', {
+            // POST to backend → Pusher triggers fleet managers
+            postTelemetry({
                 driverId: user.id,
                 tripId: activeTripId,
                 status: currentStatus,
@@ -271,7 +303,6 @@ const DriverMonitoring = () => {
         setError(null);
 
         try {
-            // 1. Get camera access
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { width: 640, height: 480, facingMode: 'user' },
                 audio: false,
@@ -283,11 +314,9 @@ const DriverMonitoring = () => {
                 await videoRef.current.play();
             }
 
-            // 2. Load MediaPipe scripts from CDN
             await loadScript(MEDIAPIPE_FACE_MESH_CDN);
             await loadScript(MEDIAPIPE_CAMERA_CDN);
 
-            // 3. Initialize FaceMesh
             const FaceMesh = window.FaceMesh;
             if (!FaceMesh) throw new Error('MediaPipe FaceMesh failed to load from CDN');
 
@@ -307,7 +336,6 @@ const DriverMonitoring = () => {
             await faceMesh.initialize();
             faceMeshRef.current = faceMesh;
 
-            // 4. Use MediaPipe Camera helper to feed video frames
             const Camera = window.Camera;
             if (!Camera) throw new Error('MediaPipe Camera utils failed to load from CDN');
 
@@ -324,7 +352,6 @@ const DriverMonitoring = () => {
             await camera.start();
             cameraRef.current = camera;
 
-            // 5. Reset tracking state
             earHistoryRef.current = [];
             lastFrameTimeRef.current = 0;
             lastEmitTimeRef.current = 0;
@@ -334,7 +361,6 @@ const DriverMonitoring = () => {
         } catch (err) {
             console.error('[monitoring] Start error:', err);
             setError(err.message || 'Failed to start monitoring');
-            // Clean up stream if camera opened but something else failed
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(t => t.stop());
                 streamRef.current = null;
@@ -346,40 +372,29 @@ const DriverMonitoring = () => {
 
     // ── Stop Monitoring ───────────────────────────────────────────────────────
     const stopMonitoring = useCallback(() => {
-        // Stop MediaPipe camera
         if (cameraRef.current) {
             cameraRef.current.stop();
             cameraRef.current = null;
         }
-
-        // Close FaceMesh
         if (faceMeshRef.current) {
             faceMeshRef.current.close();
             faceMeshRef.current = null;
         }
-
-        // Stop camera stream
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(t => t.stop());
             streamRef.current = null;
         }
-
-        // Close WebRTC peer connection
         if (peerRef.current) {
             peerRef.current.close();
             peerRef.current = null;
         }
-
-        // Exit PiP if active
         if (document.pictureInPictureElement) {
             document.exitPictureInPicture().catch(() => { });
         }
-
         if (videoRef.current) {
             videoRef.current.srcObject = null;
         }
 
-        // Reset state
         earHistoryRef.current = [];
         setIsMonitoring(false);
         setStatus('ALERT');
@@ -404,28 +419,22 @@ const DriverMonitoring = () => {
         }
     }, []);
 
-    // ── Track PiP exit via browser button ─────────────────────────────────────
     useEffect(() => {
         const handler = () => setIsPiP(false);
         document.addEventListener('leavepictureinpicture', handler);
         return () => document.removeEventListener('leavepictureinpicture', handler);
     }, []);
 
-    // ── Cleanup on unmount ────────────────────────────────────────────────────
     useEffect(() => {
         return () => {
             if (isMonitoring) stopMonitoring();
         };
     }, [isMonitoring, stopMonitoring]);
 
-    // ── Derived UI values ─────────────────────────────────────────────────────
     const isDrowsy = status === 'DROWSY';
-    const earPct = Math.min(ear / 0.4, 1);   // normalize for display bar
+    const earPct = Math.min(ear / 0.4, 1);
     const perclosPct = Math.min(perclos / 1, 1);
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────────────────────────────────
     return (
         <div className="flex flex-col gap-6 max-w-4xl mx-auto">
             {/* ── Header ── */}
@@ -437,10 +446,10 @@ const DriverMonitoring = () => {
                     </p>
                 </div>
 
-                {/* Socket status indicator */}
+                {/* Connection status indicator */}
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                     <span className={`w-2 h-2 rounded-full ${socketReady ? 'bg-green-500' : 'bg-red-400'}`} />
-                    {socketReady ? 'Connected' : 'Disconnected'}
+                    {socketReady ? 'Connected' : 'Connecting...'}
                 </div>
             </div>
 
@@ -476,12 +485,10 @@ const DriverMonitoring = () => {
                         <span className="font-semibold text-gray-800 text-sm">Camera Feed</span>
                         {isMonitoring && (
                             <div className="flex items-center gap-2">
-                                {/* Live indicator */}
                                 <span className="flex items-center gap-1 text-xs text-red-600 font-medium">
                                     <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                                     LIVE
                                 </span>
-                                {/* PiP button */}
                                 {'pictureInPictureEnabled' in document && (
                                     <button
                                         onClick={togglePiP}
@@ -496,18 +503,14 @@ const DriverMonitoring = () => {
                     </div>
 
                     <div className="relative bg-gray-900 aspect-video flex items-center justify-center">
-                        {/* Video element — always mounted so we can reference it */}
                         <video
                             ref={videoRef}
                             className={`w-full h-full object-cover ${!isMonitoring ? 'invisible' : ''}`}
                             playsInline
                             muted
                         />
-
-                        {/* Hidden canvas for MediaPipe */}
                         <canvas ref={canvasRef} className="hidden" />
 
-                        {/* Placeholder when not monitoring */}
                         {!isMonitoring && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                                 <svg className="w-16 h-16 mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -518,7 +521,6 @@ const DriverMonitoring = () => {
                             </div>
                         )}
 
-                        {/* EAR overlay (bottom-left) */}
                         {isMonitoring && (
                             <div className="absolute bottom-3 left-3 bg-black/60 rounded-lg px-3 py-2 text-xs text-white font-mono space-y-1">
                                 <div>EAR: <span className={ear < EAR_THRESHOLD ? 'text-red-400' : 'text-green-400'}>{ear.toFixed(3)}</span></div>
@@ -530,7 +532,6 @@ const DriverMonitoring = () => {
 
                 {/* ── Status Panel ── */}
                 <div className="flex flex-col gap-4">
-                    {/* Status Card */}
                     <div className={`rounded-xl border p-5 shadow-sm transition-colors duration-500 ${isDrowsy && isMonitoring
                         ? 'bg-red-50 border-red-200'
                         : 'bg-white border-gray-200'
@@ -588,7 +589,6 @@ const DriverMonitoring = () => {
                         </div>
                     </div>
 
-                    {/* Info Cards */}
                     <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                             <p className="text-xs text-gray-500 mb-1">Detection Rate</p>
@@ -600,13 +600,11 @@ const DriverMonitoring = () => {
                         </div>
                     </div>
 
-                    {/* Help text */}
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-700 leading-relaxed">
                         <strong>How it works:</strong> Your camera detects facial landmarks in real-time. EAR measures how open your eyes are.
                         If your eyes stay closed for more than 40% of the last 15 seconds, a drowsiness alert is sent to your fleet manager.
                     </div>
 
-                    {/* Start / Stop Button */}
                     <button
                         onClick={isMonitoring ? stopMonitoring : startMonitoring}
                         disabled={isLoading}
