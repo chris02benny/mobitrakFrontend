@@ -24,6 +24,7 @@ import {
     EAR_THRESHOLD,
     PERCLOS_THRESHOLD,
 } from '../../utils/drowsinessUtils';
+import { useDrowsinessAlert } from '../../hooks/useDrowsinessAlert';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,12 @@ const DriverMonitoring = () => {
     const [status, setStatus] = useState('ALERT');
     const [ear, setEar] = useState(0);
     const [perclos, setPerclos] = useState(0);
+    
+    const { processFrame, enableAudioSystem, stopAudioSystem } = useDrowsinessAlert({
+        earThreshold: 0.25, // Using a slightly forgiving threshold for earlier alerts
+        perclosThreshold: 0.15,
+        // Optional override: intercept alert changes if necessary, but the hook handles the core.
+    });
 
     // ── MediaPipe FaceMesh: Process results ───────────────────────────────────
     const onFaceMeshResults = useCallback((results) => {
@@ -131,6 +138,9 @@ const DriverMonitoring = () => {
         setPerclos(parseFloat(currentPerclos.toFixed(3)));
         setStatus(currentStatus);
 
+        // Advance the alert system state machine
+        processFrame(meanEAR, currentPerclos);
+
         const statusChanged = currentStatus !== lastStatusRef.current;
         const intervalElapsed = now - lastEmitTimeRef.current > EMIT_INTERVAL_MS;
 
@@ -151,12 +161,15 @@ const DriverMonitoring = () => {
             lastEmitTimeRef.current = now;
             lastStatusRef.current = currentStatus;
         }
-    }, []);
+    }, [processFrame]);
 
     // ── Start Monitoring ──────────────────────────────────────────────────────
     const startMonitoring = useCallback(async () => {
         setIsLoading(true);
         setError(null);
+        
+        // Initializing audio on user interaction
+        enableAudioSystem();
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -224,7 +237,7 @@ const DriverMonitoring = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [onFaceMeshResults]);
+    }, [onFaceMeshResults, enableAudioSystem]);
 
     // ── Stop Monitoring ───────────────────────────────────────────────────────
     const stopMonitoring = useCallback(() => {
@@ -249,7 +262,10 @@ const DriverMonitoring = () => {
         setStatus('ALERT');
         setEar(0);
         setPerclos(0);
-    }, []);
+        
+        // Cleanup Audio System
+        stopAudioSystem();
+    }, [stopAudioSystem]);
 
     useEffect(() => {
         return () => {
