@@ -42,6 +42,12 @@ const FRAME_INTERVAL_MS = 100; // ~10 fps
 /** Emit telemetry at most every N ms, or when status changes */
 const EMIT_INTERVAL_MS = 8000;
 
+/** Threshold for low light (average pixel luminance) */
+const LOW_LIGHT_THRESHOLD = 40;
+
+/** Threshold for no face detected (ms) */
+const NO_FACE_THRESHOLD_MS = 2000;
+
 // ─── MediaPipe CDN Loader ─────────────────────────────────────────────────────
 
 function loadScript(src) {
@@ -103,6 +109,9 @@ const DriverMonitoring = () => {
     const lastFrameTimeRef = useRef(0);            // timestamp throttle
     const lastEmitTimeRef = useRef(0);            // emit throttle
     const lastStatusRef = useRef('ALERT');      // previous status for change detection
+    const lastFaceTimeRef = useRef(Date.now());    // track last successful face detection
+    const lastEarRef = useRef(0);
+    const lastPerclosRef = useRef(0);
 
     // ── State ──────────────────────────────────────────────────────────────────
     const [isMonitoring, setIsMonitoring] = useState(false);
@@ -118,28 +127,78 @@ const DriverMonitoring = () => {
         // Optional override: intercept alert changes if necessary, but the hook handles the core.
     });
 
+    // ── Helper: Brightness Check ──────────────────────────────────────────────
+    const checkBrightness = useCallback(() => {
+        if (!videoRef.current || !canvasRef.current) return true;
+        
+        try {
+            const ctx = canvasRef.current.getContext('2d', { willReadFrequently: true });
+            canvasRef.current.width = 64;
+            canvasRef.current.height = 48;
+            ctx.drawImage(videoRef.current, 0, 0, 64, 48);
+            
+            const imageData = ctx.getImageData(0, 0, 64, 48);
+            const data = imageData.data;
+            let sum = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+            }
+            const avg = sum / (data.length / 4);
+            return avg > LOW_LIGHT_THRESHOLD;
+        } catch (err) {
+            console.warn('[monitoring] Failed to check brightness:', err);
+            return true; // Assume light is fine if we can't check
+        }
+    }, []);
+
     // ── MediaPipe FaceMesh: Process results ───────────────────────────────────
     const onFaceMeshResults = useCallback((results) => {
         const now = performance.now();
         if (now - lastFrameTimeRef.current < FRAME_INTERVAL_MS) return;
         lastFrameTimeRef.current = now;
 
-        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-            return;
+        let currentStatus = 'ALERT';
+        let meanEAR = lastEarRef.current;
+        let currentPerclos = lastPerclosRef.current;
+
+        // 1. Check Light Conditions
+        const isLightEnough = checkBrightness();
+        if (!isLightEnough) {
+            currentStatus = 'LOW_LIGHT';
+        }
+        // 2. Check for Faces
+        else if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+            if (Date.now() - lastFaceTimeRef.current > NO_FACE_THRESHOLD_MS) {
+                currentStatus = 'NO_FACE';
+            } else {
+                currentStatus = lastStatusRef.current; // retain recent status gracefully
+            }
+        }
+        // 3. Process Landmarks
+        else {
+            lastFaceTimeRef.current = Date.now();
+            const landmarks = results.multiFaceLandmarks[0];
+            meanEAR = computeMeanEAR(landmarks);
+            earHistoryRef.current = pushEARHistory(earHistoryRef.current, meanEAR);
+            currentPerclos = computePERCLOS(earHistoryRef.current);
+            currentStatus = getDrowsinessStatus(currentPerclos);
+
+            // Advance the alert system state machine
+            processFrame(meanEAR, currentPerclos);
         }
 
-        const landmarks = results.multiFaceLandmarks[0];
-        const meanEAR = computeMeanEAR(landmarks);
-        earHistoryRef.current = pushEARHistory(earHistoryRef.current, meanEAR);
-        const currentPerclos = computePERCLOS(earHistoryRef.current);
-        const currentStatus = getDrowsinessStatus(currentPerclos);
-
+        // Only update UI states to avoid excessive re-rendering 
         setEar(parseFloat(meanEAR.toFixed(3)));
         setPerclos(parseFloat(currentPerclos.toFixed(3)));
         setStatus(currentStatus);
 
-        // Advance the alert system state machine
-        processFrame(meanEAR, currentPerclos);
+        lastEarRef.current = meanEAR;
+        lastPerclosRef.current = currentPerclos;
+
+        // Stop potentially looping alarms immediately if face trace is completely lost or low light
+        if (currentStatus === 'LOW_LIGHT' || currentStatus === 'NO_FACE') {
+            stopAudioSystem();
+        }
 
         const statusChanged = currentStatus !== lastStatusRef.current;
         const intervalElapsed = now - lastEmitTimeRef.current > EMIT_INTERVAL_MS;
@@ -161,7 +220,7 @@ const DriverMonitoring = () => {
             lastEmitTimeRef.current = now;
             lastStatusRef.current = currentStatus;
         }
-    }, [processFrame]);
+    }, [processFrame, checkBrightness, stopAudioSystem]);
 
     // ── Start Monitoring ──────────────────────────────────────────────────────
     const startMonitoring = useCallback(async () => {
@@ -225,6 +284,9 @@ const DriverMonitoring = () => {
             lastFrameTimeRef.current = 0;
             lastEmitTimeRef.current = 0;
             lastStatusRef.current = 'ALERT';
+            lastFaceTimeRef.current = Date.now();
+            lastEarRef.current = 0;
+            lastPerclosRef.current = 0;
 
             setIsMonitoring(true);
         } catch (err) {
@@ -271,6 +333,8 @@ const DriverMonitoring = () => {
         setStatus('ALERT');
         setEar(0);
         setPerclos(0);
+        lastEarRef.current = 0;
+        lastPerclosRef.current = 0;
         
         // Cleanup Audio System
         stopAudioSystem();
@@ -283,6 +347,8 @@ const DriverMonitoring = () => {
     }, [isMonitoring, stopMonitoring]);
 
     const isDrowsy = status === 'DROWSY';
+    const isLowLight = status === 'LOW_LIGHT';
+    const isNoFace = status === 'NO_FACE';
     const earPct = Math.min(ear / 0.4, 1);
     const perclosPct = Math.min(perclos / 1, 1);
 
@@ -311,6 +377,32 @@ const DriverMonitoring = () => {
                         <p className="text-sm text-red-600">
                             Please pull over safely and take a rest break.
                             Your fleet manager has been notified.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Alert Banner (LOW LIGHT) ── */}
+            {isLowLight && isMonitoring && (
+                <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4">
+                    <span className="text-2xl">💡</span>
+                    <div>
+                        <p className="font-bold text-amber-800 text-lg">Camera Feed Too Dark</p>
+                        <p className="text-sm text-amber-700">
+                            Cannot analyze fatigue properly. Please improve the lighting in your cabin.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Alert Banner (NO FACE) ── */}
+            {isNoFace && isMonitoring && (
+                <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4">
+                    <span className="text-2xl">👤</span>
+                    <div>
+                        <p className="font-bold text-amber-800 text-lg">Face Not Detected</p>
+                        <p className="text-sm text-amber-700">
+                            Please align your face within the camera view to enable monitoring.
                         </p>
                     </div>
                 </div>
@@ -374,6 +466,7 @@ const DriverMonitoring = () => {
                 <div className="flex flex-col gap-4">
                     <div className={`rounded-xl border p-5 shadow-sm transition-colors duration-500 ${isDrowsy && isMonitoring
                         ? 'bg-red-50 border-red-200'
+                        : (isLowLight || isNoFace) && isMonitoring ? 'bg-amber-50 border-amber-200'
                         : 'bg-white border-gray-200'
                         }`}>
                         <div className="flex items-center justify-between mb-4">
@@ -382,9 +475,11 @@ const DriverMonitoring = () => {
                                 ? 'bg-gray-100 text-gray-500'
                                 : isDrowsy
                                     ? 'bg-red-100 text-red-700'
-                                    : 'bg-green-100 text-green-700'
+                                    : (isLowLight || isNoFace)
+                                        ? 'bg-amber-100 text-amber-700'
+                                        : 'bg-green-100 text-green-700'
                                 }`}>
-                                {!isMonitoring ? 'Inactive' : status}
+                                {!isMonitoring ? 'Inactive' : (isLowLight ? 'Low Info' : (isNoFace ? 'Missing' : status))}
                             </span>
                         </div>
 
