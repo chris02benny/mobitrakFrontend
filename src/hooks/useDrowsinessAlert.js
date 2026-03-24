@@ -9,6 +9,7 @@ const ALERT_STATES = {
 export function useDrowsinessAlert({
     earThreshold = 0.25,
     perclosThreshold = 0.15,
+    warningFramesThreshold = 5,    // Wait for at least 5 frames (~0.5s) to warn
     criticalFramesThreshold = 10,  // Frames (at ~10fps, this is 1s)
     recoveryFramesThreshold = 8,   // Frames to recover to IDLE 
     speechIntervalMs = 5000,
@@ -157,8 +158,8 @@ export function useDrowsinessAlert({
 
             if (drowsyFramesCount.current >= criticalFramesThreshold) {
                 transitionState(ALERT_STATES.CRITICAL);
-            } else if (stateRef.current === ALERT_STATES.IDLE) {
-                transitionState(ALERT_STATES.WARNING); // Instantly warns
+            } else if (drowsyFramesCount.current >= warningFramesThreshold) {
+                transitionState(ALERT_STATES.WARNING); // Warns after threshold
             }
         } else {
             if (stateRef.current !== ALERT_STATES.IDLE) {
@@ -169,9 +170,11 @@ export function useDrowsinessAlert({
                     drowsyFramesCount.current = 0;
                     transitionState(ALERT_STATES.IDLE);
                 }
+            } else {
+                drowsyFramesCount.current = 0; // Reset count for normal blinks
             }
         }
-    }, [earThreshold, perclosThreshold, criticalFramesThreshold, recoveryFramesThreshold, transitionState]);
+    }, [earThreshold, perclosThreshold, warningFramesThreshold, criticalFramesThreshold, recoveryFramesThreshold, transitionState]);
 
     // 6. Autoplay Policy Workaround
     // Call this function when the user clicks "Start Monitoring"
