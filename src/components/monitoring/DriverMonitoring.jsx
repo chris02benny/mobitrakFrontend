@@ -7,8 +7,6 @@
  *  - MediaPipe FaceMesh (loaded from CDN) for facial landmark detection
  *  - EAR + PERCLOS computation using drowsinessUtils
  *  - Pusher-based real-time events via REST API POST to /api/realtime/driver-monitoring
- *  - WebRTC peer-to-peer video stream to admin (signaling via Pusher)
- *  - Picture-in-Picture toggle
  *  - Throttled frame processing (~10 fps)
  */
 
@@ -18,7 +16,6 @@ import React, {
     useEffect,
     useCallback,
 } from 'react';
-import Pusher from 'pusher-js';
 import {
     computeMeanEAR,
     computePERCLOS,
@@ -66,12 +63,6 @@ const MEDIAPIPE_FACE_MESH_CDN =
 const MEDIAPIPE_CAMERA_CDN =
     'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1632432234/camera_utils.js';
 
-// ─── WebRTC ICE Config ────────────────────────────────────────────────────────
-
-const RTC_CONFIG = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-};
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const getUser = () => {
@@ -95,23 +86,6 @@ async function postTelemetry(payload) {
     }
 }
 
-// Post WebRTC signal to backend which then triggers Pusher
-async function postWebRTCSignal(event, driverId, data) {
-    try {
-        const token = localStorage.getItem('authToken');
-        await fetch(`${API_BASE_URL}/api/realtime/webrtc`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({ event, driverId, data }),
-        });
-    } catch (err) {
-        console.error('[WebRTC] Failed to post signal:', err.message);
-    }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,15 +97,11 @@ const DriverMonitoring = () => {
     const streamRef = useRef(null);   // MediaStream from camera
     const faceMeshRef = useRef(null);   // MediaPipe FaceMesh instance
     const cameraRef = useRef(null);   // MediaPipe Camera helper
-    const pusherRef = useRef(null);   // Pusher client instance
-    const channelRef = useRef(null);  // Subscribed Pusher channel
-    const peerRef = useRef(null);   // RTCPeerConnection
 
     const earHistoryRef = useRef([]);           // sliding window of EAR values
     const lastFrameTimeRef = useRef(0);            // timestamp throttle
     const lastEmitTimeRef = useRef(0);            // emit throttle
     const lastStatusRef = useRef('ALERT');      // previous status for change detection
-    const adminIdRef = useRef(null);            // admin userId for WebRTC
 
     // ── State ──────────────────────────────────────────────────────────────────
     const [isMonitoring, setIsMonitoring] = useState(false);
@@ -140,120 +110,6 @@ const DriverMonitoring = () => {
     const [status, setStatus] = useState('ALERT');
     const [ear, setEar] = useState(0);
     const [perclos, setPerclos] = useState(0);
-    const [isPiP, setIsPiP] = useState(false);
-    const [socketReady, setSocketReady] = useState(false);
-
-    // ── Pusher Connection ──────────────────────────────────────────────────────
-    useEffect(() => {
-        const user = getUser();
-        if (!user?.id) return;
-
-        // Connect to Pusher
-        const pusherClient = new Pusher(PUSHER_KEY, {
-            cluster: PUSHER_CLUSTER,
-        });
-
-        pusherRef.current = pusherClient;
-
-        pusherClient.connection.bind('connected', () => {
-            console.log('[monitoring] Pusher connected');
-            setSocketReady(true);
-        });
-
-        pusherClient.connection.bind('disconnected', () => {
-            console.log('[monitoring] Pusher disconnected');
-            setSocketReady(false);
-        });
-
-        // Subscribe to this driver's monitoring channel
-        const channel = pusherClient.subscribe(`monitoring-driver-${user.id}`);
-        channelRef.current = channel;
-
-        // ── WebRTC: Admin requested our video ──────────────────────────────
-        channel.bind('webrtc-start', async (data) => {
-            console.log('[WebRTC] Admin requested video, adminId:', data.adminId);
-            adminIdRef.current = data.adminId;
-
-            if (!streamRef.current) {
-                console.warn('[WebRTC] No stream available yet');
-                return;
-            }
-            await initiateWebRTCOffer(data.adminId);
-        });
-
-        // ── WebRTC: Receive admin's SDP answer ────────────────────────────
-        channel.bind('webrtc-answer', async (data) => {
-            const pc = peerRef.current;
-            if (!pc) return;
-            try {
-                await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                console.log('[WebRTC] Remote description (answer) set');
-            } catch (err) {
-                console.error('[WebRTC] setRemoteDescription error:', err);
-            }
-        });
-
-        // ── WebRTC: Receive ICE candidate from admin ──────────────────────
-        channel.bind('webrtc-ice-candidate', async (data) => {
-            const pc = peerRef.current;
-            if (!pc || !data.candidate) return;
-            try {
-                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-            } catch (err) {
-                console.error('[WebRTC] addIceCandidate error:', err);
-            }
-        });
-
-        return () => {
-            channel.unbind_all();
-            pusherClient.unsubscribe(`monitoring-driver-${user.id}`);
-            pusherClient.disconnect();
-            pusherRef.current = null;
-            channelRef.current = null;
-        };
-    }, []);
-
-    // ── WebRTC: Create offer ──────────────────────────────────────────────────
-    const initiateWebRTCOffer = useCallback(async (adminId) => {
-        if (peerRef.current) {
-            peerRef.current.close();
-        }
-
-        const pc = new RTCPeerConnection(RTC_CONFIG);
-        peerRef.current = pc;
-
-        const stream = streamRef.current;
-        if (stream) {
-            stream.getTracks().forEach(track => pc.addTrack(track, stream));
-        }
-
-        const user = getUser();
-
-        // ICE candidate handler — relay via backend → Pusher
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                postWebRTCSignal('webrtc-ice-candidate', user.id, {
-                    candidate: event.candidate,
-                    adminId,
-                    targetType: 'admin',
-                });
-            }
-        };
-
-        try {
-            const offer = await pc.createOffer({ offerToReceiveVideo: false });
-            await pc.setLocalDescription(offer);
-
-            await postWebRTCSignal('webrtc-offer', user.id, {
-                sdp: pc.localDescription,
-                adminId,
-                driverId: user.id,
-            });
-            console.log('[WebRTC] Offer sent to admin:', adminId);
-        } catch (err) {
-            console.error('[WebRTC] createOffer error:', err);
-        }
-    }, []);
 
     // ── MediaPipe FaceMesh: Process results ───────────────────────────────────
     const onFaceMeshResults = useCallback((results) => {
@@ -384,13 +240,6 @@ const DriverMonitoring = () => {
             streamRef.current.getTracks().forEach(t => t.stop());
             streamRef.current = null;
         }
-        if (peerRef.current) {
-            peerRef.current.close();
-            peerRef.current = null;
-        }
-        if (document.pictureInPictureElement) {
-            document.exitPictureInPicture().catch(() => { });
-        }
         if (videoRef.current) {
             videoRef.current.srcObject = null;
         }
@@ -400,29 +249,6 @@ const DriverMonitoring = () => {
         setStatus('ALERT');
         setEar(0);
         setPerclos(0);
-        setIsPiP(false);
-    }, []);
-
-    // ── PiP Toggle ────────────────────────────────────────────────────────────
-    const togglePiP = useCallback(async () => {
-        if (!videoRef.current) return;
-        try {
-            if (document.pictureInPictureElement) {
-                await document.exitPictureInPicture();
-                setIsPiP(false);
-            } else {
-                await videoRef.current.requestPictureInPicture();
-                setIsPiP(true);
-            }
-        } catch (err) {
-            console.warn('[PiP] Toggle failed:', err.message);
-        }
-    }, []);
-
-    useEffect(() => {
-        const handler = () => setIsPiP(false);
-        document.addEventListener('leavepictureinpicture', handler);
-        return () => document.removeEventListener('leavepictureinpicture', handler);
     }, []);
 
     useEffect(() => {
@@ -445,11 +271,9 @@ const DriverMonitoring = () => {
                         Real-time drowsiness detection using facial landmark analysis
                     </p>
                 </div>
-
-                {/* Connection status indicator */}
                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <span className={`w-2 h-2 rounded-full ${socketReady ? 'bg-green-500' : 'bg-red-400'}`} />
-                    {socketReady ? 'Connected' : 'Connecting...'}
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    Telemetrics Active
                 </div>
             </div>
 
@@ -489,15 +313,6 @@ const DriverMonitoring = () => {
                                     <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                                     LIVE
                                 </span>
-                                {'pictureInPictureEnabled' in document && (
-                                    <button
-                                        onClick={togglePiP}
-                                        title={isPiP ? 'Exit Picture-in-Picture' : 'Picture-in-Picture'}
-                                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-gray-700"
-                                    >
-                                        {isPiP ? '⬛ Exit PiP' : '⧉ PiP'}
-                                    </button>
-                                )}
                             </div>
                         )}
                     </div>

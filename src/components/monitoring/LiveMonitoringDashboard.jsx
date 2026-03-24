@@ -120,7 +120,7 @@ const DriverCard = ({ employment, liveData, onRequestVideo }) => {
                         </div>
 
                         {/* EAR + Last update */}
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center justify-between text-xs mt-2">
                             <div>
                                 <span className="text-gray-400">EAR </span>
                                 <span className={`font-mono font-semibold ${earVal < 0.22 ? 'text-red-600' : 'text-gray-700'}`}>
@@ -131,15 +131,6 @@ const DriverCard = ({ employment, liveData, onRequestVideo }) => {
                                 Updated {formatTime(liveData?.timestamp)}
                             </div>
                         </div>
-
-                        {/* Action */}
-                        <button
-                            onClick={() => onRequestVideo(driverId, name)}
-                            className="w-full py-2 text-xs font-semibold bg-gray-900 text-white rounded-xl hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Video size={14} />
-                            View Live Feed
-                        </button>
                     </>
                 ) : (
                     /* Greyed out placeholder metrics */
@@ -168,14 +159,7 @@ const DriverCard = ({ employment, liveData, onRequestVideo }) => {
 
 const LiveMonitoringDashboard = () => {
     // ── Shared monitoring state from global provider ───────────────────────
-    const { socketRef, socketReady, driverStatuses } = useMonitoringContext();
-
-    // ── WebRTC state ───────────────────────────────────────────────────────
-    const peerRef = useRef(null);
-    const remoteVideoRef = useRef(null);
-    const [viewingDriver, setViewingDriver] = useState(null); // { id, name }
-    const [showVideoModal, setShowVideoModal] = useState(false);
-    const [rtcState, setRtcState] = useState('idle'); // 'idle' | 'connecting' | 'connected' | 'error'
+    const { socketReady, driverStatuses } = useMonitoringContext();
 
     // ── Fleet driver list ──────────────────────────────────────────────────
     const [employees, setEmployees] = useState([]);
@@ -200,100 +184,6 @@ const LiveMonitoringDashboard = () => {
     useEffect(() => {
         fetchDrivers();
     }, [fetchDrivers]);
-
-    // ── WebRTC: Listen for offer from driver ───────────────────────────────
-    useEffect(() => {
-        const socket = socketRef.current;
-        if (!socket) return;
-
-        const handleOffer = async (data) => {
-            console.log('[WebRTC] Received offer from driver');
-
-            const pc = new RTCPeerConnection(RTC_CONFIG);
-            peerRef.current = pc;
-
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    socket.emit('webrtc-ice-candidate', {
-                        candidate: event.candidate,
-                        targetSocketId: data.driverSocketId,
-                        driverId: data.driverId,
-                    });
-                }
-            };
-
-            pc.ontrack = (event) => {
-                console.log('[WebRTC] Track received');
-                if (remoteVideoRef.current) {
-                    remoteVideoRef.current.srcObject = event.streams[0];
-                }
-                setRtcState('connected');
-            };
-
-            pc.onconnectionstatechange = () => {
-                if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-                    setRtcState('error');
-                }
-            };
-
-            try {
-                await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                socket.emit('webrtc-answer', {
-                    sdp: pc.localDescription,
-                    targetSocketId: data.targetSocketId || null,
-                    driverId: data.driverId,
-                });
-            } catch (err) {
-                console.error('[WebRTC] Answer error:', err);
-                setRtcState('error');
-            }
-        };
-
-        const handleIce = async (data) => {
-            const pc = peerRef.current;
-            if (!pc || !data.candidate) return;
-            try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); }
-            catch (err) { console.error('[WebRTC] addIceCandidate error:', err); }
-        };
-
-        socket.on('webrtc-offer', handleOffer);
-        socket.on('webrtc-ice-candidate', handleIce);
-
-        return () => {
-            socket.off('webrtc-offer', handleOffer);
-            socket.off('webrtc-ice-candidate', handleIce);
-        };
-    }, [socketReady]);  // re-register when socket connects / reconnects
-
-    // ── Request video feed ─────────────────────────────────────────────────
-    const requestDriverVideo = useCallback((driverId, driverName) => {
-        if (!socketRef.current?.connected) return;
-
-        setViewingDriver({ id: driverId, name: driverName });
-        setShowVideoModal(true);
-        setRtcState('connecting');
-
-        if (peerRef.current) {
-            peerRef.current.close();
-            peerRef.current = null;
-        }
-
-        socketRef.current.emit('webrtc-request', {
-            driverId,
-            adminSocketId: socketRef.current.id,
-        });
-    }, []);
-
-    // ── Close video modal ──────────────────────────────────────────────────
-    const closeVideoModal = useCallback(() => {
-        if (peerRef.current) { peerRef.current.close(); peerRef.current = null; }
-        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-        setShowVideoModal(false);
-        setViewingDriver(null);
-        setRtcState('idle');
-    }, []);
 
     // ── Counts ─────────────────────────────────────────────────────────────
     const activeCount = employees.filter(emp => {
@@ -421,102 +311,12 @@ const LiveMonitoringDashboard = () => {
                                 key={employment._id}
                                 employment={employment}
                                 liveData={liveData && liveData.status !== 'OFFLINE' ? liveData : null}
-                                onRequestVideo={requestDriverVideo}
                             />
                         );
                     })}
                 </div>
             )}
 
-            {/* ── WebRTC Video Modal ── */}
-            {showVideoModal && (
-                <div className="fixed inset-0 z-[2000] bg-black/80 flex items-center justify-center p-4">
-                    <div className="bg-gray-900 rounded-2xl overflow-hidden w-full max-w-2xl shadow-2xl">
-                        {/* Modal Header */}
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
-                            <div>
-                                <p className="text-white font-semibold">Live Driver Feed</p>
-                                <p className="text-gray-400 text-xs mt-0.5">
-                                    {viewingDriver?.name} ·{' '}
-                                    <span className={
-                                        rtcState === 'connected' ? 'text-green-400' :
-                                            rtcState === 'connecting' ? 'text-amber-400' :
-                                                rtcState === 'error' ? 'text-red-400' : 'text-gray-400'
-                                    }>
-                                        {rtcState === 'connected' ? '● Connected' :
-                                            rtcState === 'connecting' ? '⟳ Connecting…' :
-                                                rtcState === 'error' ? '✕ Error' : 'Idle'}
-                                    </span>
-                                </p>
-                            </div>
-                            <button
-                                onClick={closeVideoModal}
-                                className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
-                            >
-                                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-
-                        {/* Video area */}
-                        <div className="relative bg-black aspect-video flex items-center justify-center">
-                            <video
-                                ref={remoteVideoRef}
-                                autoPlay
-                                playsInline
-                                className="w-full h-full object-cover"
-                            />
-                            {rtcState !== 'connected' && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                                    {rtcState === 'connecting' ? (
-                                        <>
-                                            <svg className="w-10 h-10 animate-spin mb-3 text-amber-400" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                            <p className="text-sm text-amber-300">Establishing connection…</p>
-                                            <p className="text-xs text-gray-500 mt-1">Driver must have monitoring active</p>
-                                        </>
-                                    ) : rtcState === 'error' ? (
-                                        <>
-                                            <span className="text-3xl mb-2">⚠️</span>
-                                            <p className="text-sm text-red-400">Connection failed</p>
-                                            <p className="text-xs text-gray-500 mt-1">Driver may have stopped monitoring</p>
-                                        </>
-                                    ) : null}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Live telemetry strip */}
-                        {viewingDriver && driverStatuses[viewingDriver.id] && (
-                            <div className="px-5 py-3 bg-gray-800 flex items-center gap-6 text-sm">
-                                <div>
-                                    <span className="text-gray-400 text-xs">Status</span>
-                                    <div className={`font-bold mt-0.5 ${driverStatuses[viewingDriver.id].status === 'DROWSY'
-                                        ? 'text-red-400' : 'text-green-400'
-                                        }`}>
-                                        {driverStatuses[viewingDriver.id].status}
-                                    </div>
-                                </div>
-                                <div>
-                                    <span className="text-gray-400 text-xs">PERCLOS</span>
-                                    <div className="text-white font-medium mt-0.5">
-                                        {((driverStatuses[viewingDriver.id].perclos || 0) * 100).toFixed(1)}%
-                                    </div>
-                                </div>
-                                <div>
-                                    <span className="text-gray-400 text-xs">EAR</span>
-                                    <div className="text-white font-medium mt-0.5 font-mono">
-                                        {(driverStatuses[viewingDriver.id].ear || 0).toFixed(3)}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
