@@ -21,6 +21,12 @@ export function useDrowsinessAlert({
     const audioCtxRef = useRef(null);
     const beepIntervalRef = useRef(null);
     const speechIntervalRef = useRef(null);
+    
+    // Stabilize the callback to prevent infinite re-render loops in consumers
+    const onAlertChangeRef = useRef(onAlertChange);
+    useEffect(() => {
+        onAlertChangeRef.current = onAlertChange;
+    }, [onAlertChange]);
 
     // 1. Initialize Audio Context safely
     const initAudioCtx = useCallback(() => {
@@ -112,7 +118,11 @@ export function useDrowsinessAlert({
 
         // Update internal state and emit UI events
         stateRef.current = newState;
-        onAlertChange({ type: 'DROWSINESS_ALERT', severity: newState });
+        
+        // Use the ref-managed callback so this hook's identity never changes
+        if (onAlertChangeRef.current) {
+             onAlertChangeRef.current({ type: 'DROWSINESS_ALERT', severity: newState });
+        }
 
         if (newState === ALERT_STATES.IDLE) {
             stopAlarm();
@@ -135,7 +145,7 @@ export function useDrowsinessAlert({
                 playVoiceMessage();
             }, speechIntervalMs);
         }
-    }, [onAlertChange, playVoiceMessage, startAlarm, stopAlarm, speechIntervalMs]);
+    }, [playVoiceMessage, startAlarm, stopAlarm, speechIntervalMs]);
 
     // 5. Per-Frame Evaluator (Fast, uncoupled from React state)
     const processFrame = useCallback((ear, perclos) => {

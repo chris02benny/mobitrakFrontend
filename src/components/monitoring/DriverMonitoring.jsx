@@ -242,11 +242,20 @@ const DriverMonitoring = () => {
     // ── Stop Monitoring ───────────────────────────────────────────────────────
     const stopMonitoring = useCallback(() => {
         if (cameraRef.current) {
-            cameraRef.current.stop();
+            try {
+                // Not all @mediapipe/camera_utils versions retain .stop() on the generic object
+                if (typeof cameraRef.current.stop === 'function') cameraRef.current.stop();
+            } catch (err) {
+                console.warn('[monitoring] Non-fatal camera close exception:', err);
+            }
             cameraRef.current = null;
         }
         if (faceMeshRef.current) {
-            faceMeshRef.current.close();
+            try {
+                if (typeof faceMeshRef.current.close === 'function') faceMeshRef.current.close();
+            } catch (err) {
+                console.warn('[monitoring] Non-fatal faceMesh close exception:', err);
+            }
             faceMeshRef.current = null;
         }
         if (streamRef.current) {
