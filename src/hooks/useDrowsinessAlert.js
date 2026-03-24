@@ -6,10 +6,6 @@ const ALERT_STATES = {
     CRITICAL: 'CRITICAL',
 };
 
-// A simple loud beep data URI so that the audio works without an external file.
-const FALLBACK_ALARM_URI = 'data:audio/wav;base64,UklGRqAOAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YYQOAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA//8AAAAA'; 
-// NOTE: For production, replace the audio source with an actual .mp3 URL.
-
 export function useDrowsinessAlert({
     earThreshold = 0.25,
     perclosThreshold = 0.15,
@@ -22,46 +18,95 @@ export function useDrowsinessAlert({
     const drowsyFramesCount = useRef(0);
     const awakeFramesCount = useRef(0);
 
-    const audioRef = useRef(null);
+    const audioCtxRef = useRef(null);
+    const beepIntervalRef = useRef(null);
     const speechIntervalRef = useRef(null);
 
-    // 1. Initialize Audio efficiently on mount
-    useEffect(() => {
-        // You can change '/alarm.mp3' to any file in your public directory.
-        // Using a short 1-sec loop of a generic system beep as default
-        audioRef.current = new Audio(FALLBACK_ALARM_URI); 
-        audioRef.current.loop = true;
-
-        // If you don't have '/alarm.mp3', comment above and use a generic web audio API oscillator or base64 file.
-        // Fallback catch handles missing file.
-
-        return () => {
-            // Proper cleanup on unmount
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
+    // 1. Initialize Audio Context safely
+    const initAudioCtx = useCallback(() => {
+        if (!audioCtxRef.current) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                audioCtxRef.current = new AudioContext();
             }
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-            }
-            if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
-        };
+        }
+        if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+            audioCtxRef.current.resume().catch(e => console.warn("AudioContext resume failed", e));
+        }
     }, []);
 
-    // 2. Safely trigger voice alerts
+    // 2. Hardware beep synthesizer
+    const playSyntheticBeep = useCallback(() => {
+        if (!audioCtxRef.current) return;
+        
+        try {
+            const osc = audioCtxRef.current.createOscillator();
+            const gainNode = audioCtxRef.current.createGain();
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtxRef.current.destination);
+            
+            osc.type = 'square'; // Harsh warning sound
+            osc.frequency.setValueAtTime(880, audioCtxRef.current.currentTime); // A5
+            
+            // Envelope to prevent clicking
+            gainNode.gain.setValueAtTime(0, audioCtxRef.current.currentTime);
+            gainNode.gain.linearRampToValueAtTime(1, audioCtxRef.current.currentTime + 0.05);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtxRef.current.currentTime + 0.4);
+            
+            osc.start(audioCtxRef.current.currentTime);
+            osc.stop(audioCtxRef.current.currentTime + 0.5);
+        } catch (e) {
+            console.warn("Failed to play synthetic alarm beep", e);
+        }
+    }, []);
+
+    const startAlarm = useCallback(() => {
+        initAudioCtx();
+        if (beepIntervalRef.current) return;
+        playSyntheticBeep(); // Play immediately
+        beepIntervalRef.current = setInterval(playSyntheticBeep, 600); // Repeat rapidly
+    }, [initAudioCtx, playSyntheticBeep]);
+
+    const stopAlarm = useCallback(() => {
+        if (beepIntervalRef.current) {
+            clearInterval(beepIntervalRef.current);
+            beepIntervalRef.current = null;
+        }
+    }, []);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            stopAlarm();
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+            if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+                audioCtxRef.current.close().catch(() => {});
+            }
+        };
+    }, [stopAlarm]);
+
+    // 3. Safely trigger voice alerts
     const playVoiceMessage = useCallback(() => {
         if (!('speechSynthesis' in window)) return;
 
-        // Stop any currently playing speech to prevent overlap
-        window.speechSynthesis.cancel();
+        try {
+            // Some browsers pause speech synthesis in background tabs unless explicitly resumed
+            window.speechSynthesis.resume(); 
+            // Stop any currently playing speech to prevent overlap
+            window.speechSynthesis.cancel();
 
-        const utterance = new SpeechSynthesisUtterance("Warning! Drowsiness detected. Please stay alert.");
-        utterance.rate = 1.1; // Slightly faster to establish urgency
-        utterance.pitch = 1.0;
-        window.speechSynthesis.speak(utterance);
+            const utterance = new SpeechSynthesisUtterance("Warning! Drowsiness detected. Please stay alert.");
+            utterance.rate = 1.1; // Slightly faster to establish urgency
+            utterance.pitch = 1.0;
+            window.speechSynthesis.speak(utterance);
+        } catch (e) {
+            console.warn("Speech synthesis failed", e);
+        }
     }, []);
 
-    // 3. Centralized State Machine Transition
+    // 4. Centralized State Machine Transition
     const transitionState = useCallback((newState) => {
         if (stateRef.current === newState) return;
 
@@ -70,43 +115,29 @@ export function useDrowsinessAlert({
         onAlertChange({ type: 'DROWSINESS_ALERT', severity: newState });
 
         if (newState === ALERT_STATES.IDLE) {
-            // Turn off Alarm & Speech
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-            }
-
+            stopAlarm();
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
             if (speechIntervalRef.current) {
                 clearInterval(speechIntervalRef.current);
                 speechIntervalRef.current = null;
             }
         }
         else if (newState === ALERT_STATES.WARNING) {
-            // Start looping alarm immediately and speak once
-            if (audioRef.current) {
-                audioRef.current.play().catch(e => console.warn("Autoplay blocked", e));
-            }
+            startAlarm();
             playVoiceMessage();
         }
         else if (newState === ALERT_STATES.CRITICAL) {
-            // Ensure alarm is playing
-            if (audioRef.current) {
-                audioRef.current.play().catch(e => console.warn("Autoplay blocked", e));
-            }
-
-            // Speak immediately, then set interval for sustained drowsiness
+            startAlarm(); // Ensure alarm is looping
+            
             playVoiceMessage();
             if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
             speechIntervalRef.current = setInterval(() => {
                 playVoiceMessage();
             }, speechIntervalMs);
         }
-    }, [onAlertChange, playVoiceMessage, speechIntervalMs]);
+    }, [onAlertChange, playVoiceMessage, startAlarm, stopAlarm, speechIntervalMs]);
 
-    // 4. Per-Frame Evaluator (Fast, uncoupled from React state)
+    // 5. Per-Frame Evaluator (Fast, uncoupled from React state)
     const processFrame = useCallback((ear, perclos) => {
         const isDrowsy = ear < earThreshold || perclos > perclosThreshold;
 
@@ -132,27 +163,24 @@ export function useDrowsinessAlert({
         }
     }, [earThreshold, perclosThreshold, criticalFramesThreshold, recoveryFramesThreshold, transitionState]);
 
-    // 5. Autoplay Policy Workaround
+    // 6. Autoplay Policy Workaround
     // Call this function when the user clicks "Start Monitoring"
     const enableAudioSystem = useCallback(() => {
-        if (audioRef.current) {
-            audioRef.current.play().then(() => {
-                audioRef.current.pause();
-            }).catch(e => console.warn("Audio unlock failed, check file path or user interactions", e));
-        }
-
+        initAudioCtx(); // Establish trusted click intent for the AudioContext
+        
         if ('speechSynthesis' in window) {
-            const dummy = new SpeechSynthesisUtterance("");
-            dummy.volume = 0;
-            window.speechSynthesis.speak(dummy);
+            try {
+                const dummy = new SpeechSynthesisUtterance("");
+                dummy.volume = 0;
+                window.speechSynthesis.speak(dummy);
+            } catch (e) {}
         }
-    }, []);
+    }, [initAudioCtx]);
 
     // Optional manual stop
     const stopAudioSystem = useCallback(() => {
          transitionState(ALERT_STATES.IDLE);
     }, [transitionState]);
-
 
     return { processFrame, enableAudioSystem, stopAudioSystem, alertState: stateRef.current };
 }

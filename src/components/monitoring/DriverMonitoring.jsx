@@ -150,8 +150,8 @@ const DriverMonitoring = () => {
 
             // POST to backend → Pusher triggers fleet managers
             postTelemetry({
-                driverId: user.id,
-                tripId: activeTripId,
+                driverId: user._id || user.id, // Fixed: user._id is what mongo provides
+                tripId: activeTripId || null,
                 status: currentStatus,
                 perclos: parseFloat(currentPerclos.toFixed(4)),
                 ear: parseFloat(meanEAR.toFixed(4)),
