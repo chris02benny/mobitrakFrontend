@@ -7,22 +7,25 @@ import toast from 'react-hot-toast';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+if (MAPBOX_TOKEN) {
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+}
 
 const EditTripModal = ({ trip, onClose, onSuccess }) => {
     // Helper function to format duration from minutes to days, hours, minutes
     const formatDuration = (minutes) => {
         if (!minutes || minutes <= 0) return '0 min';
-
+        
         const days = Math.floor(minutes / (24 * 60));
         const hours = Math.floor((minutes % (24 * 60)) / 60);
         const mins = Math.floor(minutes % 60);
-
+        
         const parts = [];
         if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
         if (hours > 0) parts.push(`${hours} hr${hours > 1 ? 's' : ''}`);
         if (mins > 0) parts.push(`${mins} min`);
-
+        
         return parts.join(', ') || '0 min';
     };
 
@@ -197,7 +200,7 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
             coordinates.forEach((coord, index) => {
                 const el = document.createElement('div');
                 el.className = 'custom-marker';
-
+                
                 if (index === 0) {
                     // Start marker (green)
                     el.innerHTML = `<div style="background-color: #10B981; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`;
@@ -274,7 +277,7 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
         coordinates.forEach((coord, index) => {
             const el = document.createElement('div');
             el.className = 'custom-marker';
-
+            
             if (index === 0) {
                 el.innerHTML = `<div style="background-color: #10B981; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`;
             } else if (index === coordinates.length - 1) {
@@ -304,7 +307,7 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
                 params.startDateTime = formData.startDateTime;
                 params.endDateTime = formData.endDateTime;
             }
-
+            
             const data = await vehicleService.getAvailableVehicles(params);
             // Include the currently assigned vehicle if it exists
             if (trip.vehicle) {
@@ -331,26 +334,26 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
                 params.startDateTime = formData.startDateTime;
                 params.endDateTime = formData.endDateTime;
             }
-
-            const response = await hiringService.getAvailableDrivers(params);
+            
+            const response = await hiringService.getAvailableDriversForTrip(params);
             const employments = response.data?.employments || response.employments || [];
-
+            
             // Extract driver information from employments
             const driverList = employments.map(emp => {
                 // Extract the actual driver ID string
                 let driverId = emp.driverId;
-
+                
                 // If it's an object, extract the ID
                 if (driverId && typeof driverId === 'object') {
                     driverId = driverId._id || driverId.userId || driverId.id;
                 }
-
+                
                 // Skip if we don't have a valid ID
                 if (!driverId) {
                     console.warn('Invalid driver ID in employment:', emp);
                     return null;
                 }
-
+                
                 return {
                     _id: String(driverId), // Ensure it's a string
                     name: `${emp.driverDetails?.firstName || ''} ${emp.driverDetails?.lastName || ''}`.trim() || 'Driver',
@@ -359,7 +362,7 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
                     assignmentStatus: emp.driverDetails?.assignmentStatus || emp.assignmentStatus || 'UNASSIGNED'
                 };
             }).filter(driver => driver !== null); // Remove any null entries
-
+            
             // Always include the currently assigned driver at the top
             if (trip.driver && trip.driverId) {
                 const driverExists = driverList.some(d => d._id === String(trip.driverId));
@@ -608,455 +611,457 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             {/* Left Column - Form */}
                             <div className="space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto pr-4">
-                                {/* Trip Type */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Trip Type <span className="text-red-500">*</span>
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleInputChange({ target: { name: 'tripType', value: 'commercial' } })}
-                                            className={`p-4 rounded-lg border-2 transition-all ${formData.tripType === 'commercial'
-                                                ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                                : 'border-gray-200 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            <Truck className="mx-auto mb-2" size={24} />
-                                            <div className="font-medium">Commercial</div>
-                                            <div className="text-xs text-gray-500">Goods Transport</div>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleInputChange({ target: { name: 'tripType', value: 'passenger' } })}
-                                            className={`p-4 rounded-lg border-2 transition-all ${formData.tripType === 'passenger'
-                                                ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                                : 'border-gray-200 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            <MapPin className="mx-auto mb-2" size={24} />
-                                            <div className="font-medium">Passenger</div>
-                                            <div className="text-xs text-gray-500">People Transport</div>
-                                        </button>
-                                    </div>
-                                    {errors.tripType && <p className="text-red-500 text-sm mt-1">{errors.tripType}</p>}
-                                </div>
-
-                                {/* Vehicle Selection */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Select Vehicle <span className="text-red-500">*</span>
-                                    </label>
-                                    <select
-                                        name="vehicleId"
-                                        value={formData.vehicleId}
-                                        onChange={handleInputChange}
-                                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.vehicleId ? 'border-red-500' : 'border-gray-300'}`}
-                                    >
-                                        <option value="">Select a vehicle</option>
-                                        {vehicles.map(vehicle => (
-                                            <option key={vehicle._id} value={vehicle._id}>
-                                                {vehicle.registrationNumber || vehicle.regnNo} - {vehicle.make || vehicle.makersName || 'Unknown'} {vehicle.model || vehicle.vehicleClass || ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {errors.vehicleId && <p className="text-red-500 text-sm mt-1">{errors.vehicleId}</p>}
-                                </div>
-
-                                {/* Driver Selection */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Assign Driver <span className="text-red-500">*</span>
-                                    </label>
-                                    <select
-                                        name="driverId"
-                                        value={formData.driverId}
-                                        onChange={handleInputChange}
-                                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.driverId ? 'border-red-500' : 'border-gray-300'}`}
-                                    >
-                                        <option value="">Select a driver</option>
-                                        {drivers.map(driver => (
-                                            <option key={driver._id} value={driver._id}>
-                                                {driver.name} {driver.email ? `(${driver.email})` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {errors.driverId && <p className="text-red-500 text-sm mt-1">{errors.driverId}</p>}
-                                </div>
-
-                                {/* Customer Information */}
-                                <div className="space-y-4 border-t border-gray-200 pt-4">
-                                    <h3 className="text-sm font-semibold text-gray-900">Customer Information</h3>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            <User size={16} className="inline mr-1" />
-                                            Customer Name <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="customerName"
-                                            value={formData.customerName}
-                                            onChange={handleInputChange}
-                                            placeholder="Enter customer name"
-                                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.customerName ? 'border-red-500' : 'border-gray-300'}`}
-                                        />
-                                        {errors.customerName && <p className="text-red-500 text-sm mt-1">{errors.customerName}</p>}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            <Mail size={16} className="inline mr-1" />
-                                            Customer Email <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="email"
-                                            name="customerEmail"
-                                            value={formData.customerEmail}
-                                            onChange={(e) => {
-                                                const email = e.target.value;
-                                                setFormData(prev => ({ ...prev, customerEmail: email }));
-
-                                                // Live email validation
-                                                if (email && !/^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-                                                    setErrors(prev => ({ ...prev, customerEmail: 'Please enter a valid email address' }));
-                                                } else {
-                                                    setErrors(prev => ({ ...prev, customerEmail: '' }));
-                                                }
-                                            }}
-                                            placeholder="customer@example.com"
-                                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.customerEmail ? 'border-red-500' : 'border-gray-300'}`}
-                                        />
-                                        {errors.customerEmail && <p className="text-red-500 text-sm mt-1">{errors.customerEmail}</p>}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            <Phone size={16} className="inline mr-1" />
-                                            Customer Contact Number <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="tel"
-                                            name="customerContact"
-                                            value={formData.customerContact}
-                                            onChange={(e) => {
-                                                const value = e.target.value;
-                                                // Allow only numbers, +, spaces, and hyphens
-                                                if (value === '' || /^[0-9+\s-]*$/.test(value)) {
-                                                    setFormData(prev => ({ ...prev, customerContact: value }));
-
-                                                    // Live phone validation
-                                                    if (value && !/^(\+91[\s-]?)?[6-9]\d{9}$/.test(value.replace(/[\s-]/g, ''))) {
-                                                        setErrors(prev => ({ ...prev, customerContact: 'Please enter a valid Indian mobile number' }));
-                                                    } else {
-                                                        setErrors(prev => ({ ...prev, customerContact: '' }));
-                                                    }
-                                                }
-                                            }}
-                                            placeholder="+91 XXXXX XXXXX"
-                                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.customerContact ? 'border-red-500' : 'border-gray-300'}`}
-                                        />
-                                        {errors.customerContact && <p className="text-red-500 text-sm mt-1">{errors.customerContact}</p>}
-                                    </div>
-                                </div>
-
-                                {/* Pricing Information */}
-                                <div className="space-y-4 border-t border-gray-200 pt-4">
-                                    <h3 className="text-sm font-semibold text-gray-900">Pricing Details</h3>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Amount per KM (₹) <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="amountPerKm"
-                                                value={formData.amountPerKm}
-                                                onChange={(e) => {
-                                                    const value = e.target.value;
-                                                    // Allow only numbers and decimal point
-                                                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                                                        const numValue = parseFloat(value);
-                                                        if (value === '' || numValue >= 1 || value.endsWith('.')) {
-                                                            setFormData(prev => ({ ...prev, amountPerKm: value }));
-                                                        }
-                                                    }
-                                                    if (errors.amountPerKm) {
-                                                        setErrors(prev => ({ ...prev, amountPerKm: '' }));
-                                                    }
-                                                }}
-                                                placeholder="Minimum 1"
-                                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.amountPerKm ? 'border-red-500' : 'border-gray-300'}`}
-                                            />
-                                            {errors.amountPerKm && <p className="text-red-500 text-xs mt-1">{errors.amountPerKm}</p>}
-                                            {!errors.amountPerKm && formData.amountPerKm && parseFloat(formData.amountPerKm) < 1 && (
-                                                <p className="text-red-500 text-xs mt-1">Amount must be at least ₹1</p>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Vehicle Rent (₹) <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="vehicleRent"
-                                                value={formData.vehicleRent}
-                                                onChange={(e) => {
-                                                    const value = e.target.value;
-                                                    // Allow only numbers and decimal point
-                                                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                                                        const numValue = parseFloat(value);
-                                                        if (value === '' || numValue >= 1 || value.endsWith('.')) {
-                                                            setFormData(prev => ({ ...prev, vehicleRent: value }));
-                                                        }
-                                                    }
-                                                    if (errors.vehicleRent) {
-                                                        setErrors(prev => ({ ...prev, vehicleRent: '' }));
-                                                    }
-                                                }}
-                                                placeholder="Minimum 1"
-                                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.vehicleRent ? 'border-red-500' : 'border-gray-300'}`}
-                                            />
-                                            {errors.vehicleRent && <p className="text-red-500 text-xs mt-1">{errors.vehicleRent}</p>}
-                                            {!errors.vehicleRent && formData.vehicleRent && parseFloat(formData.vehicleRent) < 1 && (
-                                                <p className="text-red-500 text-xs mt-1">Rent must be at least ₹1</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Two-Way Trip Checkbox */}
-                                    <div className="flex items-center space-x-2 pt-2">
-                                        <input
-                                            type="checkbox"
-                                            id="isTwoWay"
-                                            checked={isTwoWay}
-                                            onChange={(e) => setIsTwoWay(e.target.checked)}
-                                            className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
-                                        />
-                                        <label htmlFor="isTwoWay" className="text-sm font-medium text-gray-700">
-                                            Charge for Two-Way Trip (Return Journey)
-                                        </label>
-                                    </div>
-                                </div>
-
-                                {/* Destinations */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Start Destination <span className="text-red-500">*</span>
-                                        </label>
-                                        {formData.startDestination.name && (
-                                            <button
-                                                type="button"
-                                                onClick={() => clearLocation('startDestination')}
-                                                className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
-                                            >
-                                                <X size={16} />
-                                                Clear
-                                            </button>
-                                        )}
-                                    </div>
-                                    <LocationPicker
-                                        value={formData.startDestination.name}
-                                        onSelect={(place) => handleLocationSelect(place, 'startDestination')}
-                                        error={errors.startDestination}
-                                    />
-                                </div>
-
-                                {/* Stops */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Stops (Optional)
-                                        </label>
-                                        <button
-                                            type="button"
-                                            onClick={addStop}
-                                            className="flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700"
-                                        >
-                                            <Plus size={16} />
-                                            Add Stop
-                                        </button>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {formData.stops.map((stop, index) => (
-                                            <div key={index} className="flex gap-2">
-                                                <div className="flex-1">
-                                                    <LocationPicker
-                                                        value={stop.name}
-                                                        onSelect={(place) => updateStop(index, place)}
-                                                        placeholder={`Stop ${index + 1}`}
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeStop(index)}
-                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                                                >
-                                                    <X size={20} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* End Destination */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            End Destination <span className="text-red-500">*</span>
-                                        </label>
-                                        {formData.endDestination.name && (
-                                            <button
-                                                type="button"
-                                                onClick={() => clearLocation('endDestination')}
-                                                className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
-                                            >
-                                                <X size={16} />
-                                                Clear
-                                            </button>
-                                        )}
-                                    </div>
-                                    <LocationPicker
-                                        value={formData.endDestination.name}
-                                        onSelect={(place) => handleLocationSelect(place, 'endDestination')}
-                                        error={errors.endDestination}
-                                    />
-                                </div>
-
-                                {/* Date Time */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Start Date & Time <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="datetime-local"
-                                            name="startDateTime"
-                                            value={formData.startDateTime}
-                                            min={new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 16)}
-                                            onChange={handleInputChange}
-                                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.startDateTime ? 'border-red-500' : 'border-gray-300'}`}
-                                        />
-                                        {errors.startDateTime && <p className="text-red-500 text-sm mt-1">{errors.startDateTime}</p>}
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            End Date & Time <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="datetime-local"
-                                            name="endDateTime"
-                                            value={formData.endDateTime}
-                                            onChange={handleInputChange}
-                                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.endDateTime ? 'border-red-500' : 'border-gray-300'}`}
-                                        />
-                                        {errors.endDateTime && <p className="text-red-500 text-sm mt-1">{errors.endDateTime}</p>}
-                                    </div>
-                                </div>
-
-                                {/* Route Information */}
-                                {routeData && (
-                                    <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                                        <h3 className="font-medium text-gray-900">Trip Details</h3>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <div className="text-sm text-gray-600">Distance</div>
-                                                <div className="text-lg font-semibold text-gray-900">
-                                                    {(routeData.distance * (isTwoWay ? 2 : 1)).toFixed(2)} km
-                                                    {isTwoWay && (
-                                                        <span className="text-xs text-gray-500 ml-1">(Two-Way)</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm text-gray-600">Estimated Duration</div>
-                                                <div className="text-lg font-semibold text-gray-900">
-                                                    {formatDuration((routeData.duration * (isTwoWay ? 2 : 1)) + (formData.stops.length * 30))}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Price Breakdown */}
-                                        {(formData.amountPerKm || formData.vehicleRent) && (
-                                            <div className="mt-4 border-t border-gray-200 pt-3">
-                                                <h4 className="text-sm font-semibold text-gray-900 mb-3">Price Breakdown</h4>
-                                                <div className="space-y-2">
-                                                    {formData.amountPerKm && parseFloat(formData.amountPerKm) > 0 && (
-                                                        <div className="flex justify-between items-center text-sm">
-                                                            <span className="text-gray-600">
-                                                                {isTwoWay ? (
-                                                                    <>Distance Charges ({routeData.distance.toFixed(2)} km × 2 for two-way × ₹{formData.amountPerKm}/km)</>
-                                                                ) : (
-                                                                    <>Distance Charges ({routeData.distance.toFixed(2)} km × ₹{formData.amountPerKm}/km)</>
-                                                                )}
-                                                            </span>
-                                                            <span className="font-medium text-gray-900">
-                                                                ₹{(parseFloat(formData.amountPerKm) * routeData.distance * (isTwoWay ? 2 : 1)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    {formData.vehicleRent && parseFloat(formData.vehicleRent) > 0 && (
-                                                        <div className="flex justify-between items-center text-sm">
-                                                            <span className="text-gray-600">Vehicle Rent</span>
-                                                            <span className="font-medium text-gray-900">
-                                                                ₹{parseFloat(formData.vehicleRent).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    <div className="flex justify-between items-center text-base border-t border-gray-200 pt-2 mt-2">
-                                                        <span className="font-semibold text-gray-900">Total Amount</span>
-                                                        <span className="font-bold text-green-600 text-lg">
-                                                            ₹{((parseFloat(formData.amountPerKm) * routeData.distance * (isTwoWay ? 2 : 1)) + parseFloat(formData.vehicleRent || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Submit Button */}
+                        {/* Trip Type */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Trip Type <span className="text-red-500">*</span>
+                            </label>
+                            <div className="grid grid-cols-2 gap-4">
                                 <button
-                                    type="submit"
-                                    disabled={loading || calculatingRoute}
-                                    className="w-full bg-amber-500 text-white py-3 rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    type="button"
+                                    onClick={() => handleInputChange({ target: { name: 'tripType', value: 'commercial' } })}
+                                    className={`p-4 rounded-lg border-2 transition-all ${
+                                        formData.tripType === 'commercial'
+                                            ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                    }`}
                                 >
-                                    {loading ? (
-                                        <>
-                                            <Loader2 className="animate-spin" size={20} />
-                                            Updating Trip...
-                                        </>
-                                    ) : (
-                                        'Update Trip'
-                                    )}
+                                    <Truck className="mx-auto mb-2" size={24} />
+                                    <div className="font-medium">Commercial</div>
+                                    <div className="text-xs text-gray-500">Goods Transport</div>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleInputChange({ target: { name: 'tripType', value: 'passenger' } })}
+                                    className={`p-4 rounded-lg border-2 transition-all ${
+                                        formData.tripType === 'passenger'
+                                            ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                    }`}
+                                >
+                                    <MapPin className="mx-auto mb-2" size={24} />
+                                    <div className="font-medium">Passenger</div>
+                                    <div className="text-xs text-gray-500">People Transport</div>
                                 </button>
                             </div>
+                            {errors.tripType && <p className="text-red-500 text-sm mt-1">{errors.tripType}</p>}
+                        </div>
 
-                            {/* Right Column - Map */}
-                            <div className="lg:sticky lg:top-6 h-[600px]">
-                                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden h-full">
-                                    <div className="p-4 border-b border-gray-200 bg-gray-50">
-                                        <div className="flex items-center gap-2">
-                                            <Navigation2 size={20} className="text-amber-600" />
-                                            <h3 className="font-medium text-gray-900">Route Preview</h3>
-                                        </div>
-                                        {calculatingRoute && (
-                                            <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
-                                                <Loader2 className="animate-spin" size={16} />
-                                                <span>Calculating route...</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div ref={mapContainer} className="h-[calc(100%-60px)]" />
-                                </div>
+                        {/* Vehicle Selection */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Select Vehicle <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                name="vehicleId"
+                                value={formData.vehicleId}
+                                onChange={handleInputChange}
+                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.vehicleId ? 'border-red-500' : 'border-gray-300'}`}
+                            >
+                                <option value="">Select a vehicle</option>
+                                {vehicles.map(vehicle => (
+                                    <option key={vehicle._id} value={vehicle._id}>
+                                        {vehicle.registrationNumber || vehicle.regnNo} - {vehicle.make || vehicle.makersName || 'Unknown'} {vehicle.model || vehicle.vehicleClass || ''}
+                                    </option>
+                                ))}
+                            </select>
+                            {errors.vehicleId && <p className="text-red-500 text-sm mt-1">{errors.vehicleId}</p>}
+                        </div>
+
+                        {/* Driver Selection */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Assign Driver <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                name="driverId"
+                                value={formData.driverId}
+                                onChange={handleInputChange}
+                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.driverId ? 'border-red-500' : 'border-gray-300'}`}
+                            >
+                                <option value="">Select a driver</option>
+                                {drivers.map(driver => (
+                                    <option key={driver._id} value={driver._id}>
+                                        {driver.name} {driver.email ? `(${driver.email})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            {errors.driverId && <p className="text-red-500 text-sm mt-1">{errors.driverId}</p>}
+                        </div>
+
+                        {/* Customer Information */}
+                        <div className="space-y-4 border-t border-gray-200 pt-4">
+                            <h3 className="text-sm font-semibold text-gray-900">Customer Information</h3>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <User size={16} className="inline mr-1" />
+                                    Customer Name <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="customerName"
+                                    value={formData.customerName}
+                                    onChange={handleInputChange}
+                                    placeholder="Enter customer name"
+                                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.customerName ? 'border-red-500' : 'border-gray-300'}`}
+                                />
+                                {errors.customerName && <p className="text-red-500 text-sm mt-1">{errors.customerName}</p>}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <Mail size={16} className="inline mr-1" />
+                                    Customer Email <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="email"
+                                    name="customerEmail"
+                                    value={formData.customerEmail}
+                                    onChange={(e) => {
+                                        const email = e.target.value;
+                                        setFormData(prev => ({ ...prev, customerEmail: email }));
+                                        
+                                        // Live email validation
+                                        if (email && !/^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+                                            setErrors(prev => ({ ...prev, customerEmail: 'Please enter a valid email address' }));
+                                        } else {
+                                            setErrors(prev => ({ ...prev, customerEmail: '' }));
+                                        }
+                                    }}
+                                    placeholder="customer@example.com"
+                                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.customerEmail ? 'border-red-500' : 'border-gray-300'}`}
+                                />
+                                {errors.customerEmail && <p className="text-red-500 text-sm mt-1">{errors.customerEmail}</p>}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <Phone size={16} className="inline mr-1" />
+                                    Customer Contact Number <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="tel"
+                                    name="customerContact"
+                                    value={formData.customerContact}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        // Allow only numbers, +, spaces, and hyphens
+                                        if (value === '' || /^[0-9+\s-]*$/.test(value)) {
+                                            setFormData(prev => ({ ...prev, customerContact: value }));
+                                            
+                                            // Live phone validation
+                                            if (value && !/^(\+91[\s-]?)?[6-9]\d{9}$/.test(value.replace(/[\s-]/g, ''))) {
+                                                setErrors(prev => ({ ...prev, customerContact: 'Please enter a valid Indian mobile number' }));
+                                            } else {
+                                                setErrors(prev => ({ ...prev, customerContact: '' }));
+                                            }
+                                        }
+                                    }}
+                                    placeholder="+91 XXXXX XXXXX"
+                                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.customerContact ? 'border-red-500' : 'border-gray-300'}`}
+                                />
+                                {errors.customerContact && <p className="text-red-500 text-sm mt-1">{errors.customerContact}</p>}
                             </div>
                         </div>
-                    </form>
+
+                        {/* Pricing Information */}
+                        <div className="space-y-4 border-t border-gray-200 pt-4">
+                            <h3 className="text-sm font-semibold text-gray-900">Pricing Details</h3>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Amount per KM (₹) <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="amountPerKm"
+                                        value={formData.amountPerKm}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            // Allow only numbers and decimal point
+                                            if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                                                const numValue = parseFloat(value);
+                                                if (value === '' || numValue >= 1 || value.endsWith('.')) {
+                                                    setFormData(prev => ({ ...prev, amountPerKm: value }));
+                                                }
+                                            }
+                                            if (errors.amountPerKm) {
+                                                setErrors(prev => ({ ...prev, amountPerKm: '' }));
+                                            }
+                                        }}
+                                        placeholder="Minimum 1"
+                                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.amountPerKm ? 'border-red-500' : 'border-gray-300'}`}
+                                    />
+                                    {errors.amountPerKm && <p className="text-red-500 text-xs mt-1">{errors.amountPerKm}</p>}
+                                    {!errors.amountPerKm && formData.amountPerKm && parseFloat(formData.amountPerKm) < 1 && (
+                                        <p className="text-red-500 text-xs mt-1">Amount must be at least ₹1</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Vehicle Rent (₹) <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="vehicleRent"
+                                        value={formData.vehicleRent}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            // Allow only numbers and decimal point
+                                            if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                                                const numValue = parseFloat(value);
+                                                if (value === '' || numValue >= 1 || value.endsWith('.')) {
+                                                    setFormData(prev => ({ ...prev, vehicleRent: value }));
+                                                }
+                                            }
+                                            if (errors.vehicleRent) {
+                                                setErrors(prev => ({ ...prev, vehicleRent: '' }));
+                                            }
+                                        }}
+                                        placeholder="Minimum 1"
+                                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.vehicleRent ? 'border-red-500' : 'border-gray-300'}`}
+                                    />
+                                    {errors.vehicleRent && <p className="text-red-500 text-xs mt-1">{errors.vehicleRent}</p>}
+                                    {!errors.vehicleRent && formData.vehicleRent && parseFloat(formData.vehicleRent) < 1 && (
+                                        <p className="text-red-500 text-xs mt-1">Rent must be at least ₹1</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Two-Way Trip Checkbox */}
+                            <div className="flex items-center space-x-2 pt-2">
+                                <input
+                                    type="checkbox"
+                                    id="isTwoWay"
+                                    checked={isTwoWay}
+                                    onChange={(e) => setIsTwoWay(e.target.checked)}
+                                    className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                                />
+                                <label htmlFor="isTwoWay" className="text-sm font-medium text-gray-700">
+                                    Charge for Two-Way Trip (Return Journey)
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Destinations */}
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Start Destination <span className="text-red-500">*</span>
+                                </label>
+                                {formData.startDestination.name && (
+                                    <button
+                                        type="button"
+                                        onClick={() => clearLocation('startDestination')}
+                                        className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
+                                    >
+                                        <X size={16} />
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                            <LocationPicker
+                                value={formData.startDestination.name}
+                                onSelect={(place) => handleLocationSelect(place, 'startDestination')}
+                                error={errors.startDestination}
+                            />
+                        </div>
+
+                        {/* Stops */}
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Stops (Optional)
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={addStop}
+                                    className="flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700"
+                                >
+                                    <Plus size={16} />
+                                    Add Stop
+                                </button>
+                            </div>
+                            <div className="space-y-3">
+                                {formData.stops.map((stop, index) => (
+                                    <div key={index} className="flex gap-2">
+                                        <div className="flex-1">
+                                            <LocationPicker
+                                                value={stop.name}
+                                                onSelect={(place) => updateStop(index, place)}
+                                                placeholder={`Stop ${index + 1}`}
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeStop(index)}
+                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* End Destination */}
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    End Destination <span className="text-red-500">*</span>
+                                </label>
+                                {formData.endDestination.name && (
+                                    <button
+                                        type="button"
+                                        onClick={() => clearLocation('endDestination')}
+                                        className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
+                                    >
+                                        <X size={16} />
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                            <LocationPicker
+                                value={formData.endDestination.name}
+                                onSelect={(place) => handleLocationSelect(place, 'endDestination')}
+                                error={errors.endDestination}
+                            />
+                        </div>
+
+                        {/* Date Time */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Start Date & Time <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="datetime-local"
+                                    name="startDateTime"
+                                    value={formData.startDateTime}
+                                    min={new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 16)}
+                                    onChange={handleInputChange}
+                                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.startDateTime ? 'border-red-500' : 'border-gray-300'}`}
+                                />
+                                {errors.startDateTime && <p className="text-red-500 text-sm mt-1">{errors.startDateTime}</p>}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    End Date & Time <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="datetime-local"
+                                    name="endDateTime"
+                                    value={formData.endDateTime}
+                                    onChange={handleInputChange}
+                                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.endDateTime ? 'border-red-500' : 'border-gray-300'}`}
+                                />
+                                {errors.endDateTime && <p className="text-red-500 text-sm mt-1">{errors.endDateTime}</p>}
+                            </div>
+                        </div>
+
+                        {/* Route Information */}
+                        {routeData && (
+                            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                                <h3 className="font-medium text-gray-900">Trip Details</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <div className="text-sm text-gray-600">Distance</div>
+                                        <div className="text-lg font-semibold text-gray-900">
+                                            {(routeData.distance * (isTwoWay ? 2 : 1)).toFixed(2)} km
+                                            {isTwoWay && (
+                                                <span className="text-xs text-gray-500 ml-1">(Two-Way)</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm text-gray-600">Estimated Duration</div>
+                                        <div className="text-lg font-semibold text-gray-900">
+                                            {formatDuration((routeData.duration * (isTwoWay ? 2 : 1)) + (formData.stops.length * 30))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Price Breakdown */}
+                                {(formData.amountPerKm || formData.vehicleRent) && (
+                                    <div className="mt-4 border-t border-gray-200 pt-3">
+                                        <h4 className="text-sm font-semibold text-gray-900 mb-3">Price Breakdown</h4>
+                                        <div className="space-y-2">
+                                            {formData.amountPerKm && parseFloat(formData.amountPerKm) > 0 && (
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="text-gray-600">
+                                                        {isTwoWay ? (
+                                                            <>Distance Charges ({routeData.distance.toFixed(2)} km × 2 for two-way × ₹{formData.amountPerKm}/km)</>
+                                                        ) : (
+                                                            <>Distance Charges ({routeData.distance.toFixed(2)} km × ₹{formData.amountPerKm}/km)</>
+                                                        )}
+                                                    </span>
+                                                    <span className="font-medium text-gray-900">
+                                                        ₹{(parseFloat(formData.amountPerKm) * routeData.distance * (isTwoWay ? 2 : 1)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {formData.vehicleRent && parseFloat(formData.vehicleRent) > 0 && (
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="text-gray-600">Vehicle Rent</span>
+                                                    <span className="font-medium text-gray-900">
+                                                        ₹{parseFloat(formData.vehicleRent).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between items-center text-base border-t border-gray-200 pt-2 mt-2">
+                                                <span className="font-semibold text-gray-900">Total Amount</span>
+                                                <span className="font-bold text-green-600 text-lg">
+                                                    ₹{((parseFloat(formData.amountPerKm) * routeData.distance * (isTwoWay ? 2 : 1)) + parseFloat(formData.vehicleRent || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Submit Button */}
+                        <button
+                            type="submit"
+                            disabled={loading || calculatingRoute}
+                            className="w-full bg-amber-500 text-white py-3 rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={20} />
+                                    Updating Trip...
+                                </>
+                            ) : (
+                                'Update Trip'
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Right Column - Map */}
+                    <div className="lg:sticky lg:top-6 h-[600px]">
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden h-full">
+                            <div className="p-4 border-b border-gray-200 bg-gray-50">
+                                <div className="flex items-center gap-2">
+                                    <Navigation2 size={20} className="text-amber-600" />
+                                    <h3 className="font-medium text-gray-900">Route Preview</h3>
+                                </div>
+                                {calculatingRoute && (
+                                    <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+                                        <Loader2 className="animate-spin" size={16} />
+                                        <span>Calculating route...</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div ref={mapContainer} className="h-[calc(100%-60px)]" />
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </form>
+        </div>
+    </div>
 
             {/* Confirmation Modal */}
             {showConfirmModal && (
@@ -1120,7 +1125,7 @@ const LocationPicker = ({ label, value, onSelect, error, required, placeholder }
 
     const searchLocation = async () => {
         if (!isUserTyping) return;
-
+        
         setSearching(true);
         try {
             const response = await fetch(

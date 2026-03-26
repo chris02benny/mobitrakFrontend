@@ -6,9 +6,10 @@ import { tripService } from '../../services/tripService';
 import ConfirmationModal from './ConfirmationModal';
 import TripTimeline from './TripTimeline';
 
-// Mapbox access token
-// Mapbox access token
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+if (MAPBOX_TOKEN) {
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+}
 
 const AssignedTripCard = ({ trip, onTripUpdate }) => {
     const mapContainer = useRef(null);
@@ -42,7 +43,7 @@ const AssignedTripCard = ({ trip, onTripUpdate }) => {
     const openGoogleMapsNavigation = () => {
         const start = trip.startDestination.location.coordinates;
         const end = trip.endDestination.location.coordinates;
-
+        
         // Build waypoints if there are stops
         let waypointsParam = '';
         if (trip.stops && trip.stops.length > 0) {
@@ -54,7 +55,7 @@ const AssignedTripCard = ({ trip, onTripUpdate }) => {
 
         // Google Maps navigation URL with origin, destination, and waypoints
         const url = `https://www.google.com/maps/dir/?api=1&origin=${start[1]},${start[0]}&destination=${end[1]},${end[0]}${waypointsParam}&travelmode=driving`;
-
+        
         window.open(url, '_blank');
     };
 
@@ -129,14 +130,14 @@ const AssignedTripCard = ({ trip, onTripUpdate }) => {
     useEffect(() => {
         const fetchRoute = async () => {
             console.log('fetchRoute called, trip.route:', trip.route);
-
+            
             // If trip already has route with geometry, use it
             if (trip.route && trip.route.geometry) {
                 console.log('Using existing route geometry');
                 setRouteData(trip.route.geometry);
                 return;
             }
-
+            
             // If trip has route without geometry property (direct geometry object)
             if (trip.route && trip.route.type && trip.route.coordinates) {
                 console.log('Using direct route object');
@@ -157,7 +158,7 @@ const AssignedTripCard = ({ trip, onTripUpdate }) => {
 
                     const data = await tripService.calculateRoute(coordinates, trip.tripType);
                     console.log('calculateRoute response:', data);
-
+                    
                     // Handle response structure - it might be data.route.geometry or data.route
                     if (data.route && data.route.geometry) {
                         setRouteData(data.route.geometry);
@@ -268,7 +269,7 @@ const AssignedTripCard = ({ trip, onTripUpdate }) => {
             coordinates.forEach((coord, index) => {
                 const el = document.createElement('div');
                 el.className = 'custom-marker';
-
+                
                 if (index === 0) {
                     el.style.backgroundColor = '#3B82F6';
                     el.innerHTML = '<div style="color: white; font-weight: bold; font-size: 12px;">A</div>';
@@ -279,7 +280,7 @@ const AssignedTripCard = ({ trip, onTripUpdate }) => {
                     el.style.backgroundColor = '#F59E0B';
                     el.innerHTML = `<div style="color: white; font-weight: bold; font-size: 10px;">${index}</div>`;
                 }
-
+                
                 el.style.width = '30px';
                 el.style.height = '30px';
                 el.style.borderRadius = '50%';
@@ -292,7 +293,7 @@ const AssignedTripCard = ({ trip, onTripUpdate }) => {
                 const marker = new mapboxgl.Marker(el)
                     .setLngLat(coord)
                     .addTo(map.current);
-
+                
                 markers.current.push(marker);
             });
 
@@ -352,146 +353,147 @@ const AssignedTripCard = ({ trip, onTripUpdate }) => {
 
                 {/* Right Column - Trip Details */}
                 <div className="flex flex-col gap-4">
-                    {/* Quick Info */}
-                    <div className="grid grid-cols-1 gap-4">
-                        {/* Start Destination */}
-                        <div className="flex items-start gap-3">
-                            <div className="bg-blue-100 p-2 rounded-full">
-                                <MapPin size={20} className="text-blue-600" />
-                            </div>
-                            <div>
-                                <p className="text-xs text-gray-500 font-semibold">FROM</p>
-                                <p className="text-sm font-bold text-gray-800">{trip.startDestination.name}</p>
-                                {trip.startDestination.address && (
-                                    <p className="text-xs text-gray-600">{trip.startDestination.address}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* End Destination */}
-                        <div className="flex items-start gap-3">
-                            <div className="bg-red-100 p-2 rounded-full">
-                                <MapPin size={20} className="text-red-600" />
-                            </div>
-                            <div>
-                                <p className="text-xs text-gray-500 font-semibold">TO</p>
-                                <p className="text-sm font-bold text-gray-800">{trip.endDestination.name}</p>
-                                {trip.endDestination.address && (
-                                    <p className="text-xs text-gray-600">{trip.endDestination.address}</p>
-                                )}
-                            </div>
-                        </div>
+            {/* Quick Info */}
+            <div className="grid grid-cols-1 gap-4">
+                {/* Start Destination */}
+                <div className="flex items-start gap-3">
+                    <div className="bg-blue-100 p-2 rounded-full">
+                        <MapPin size={20} className="text-blue-600" />
                     </div>
-
-                    {/* Trip Details */}
-                    <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                            <Calendar size={16} className="text-gray-500" />
-                            <div>
-                                <p className="text-xs text-gray-500">Start</p>
-                                <p className="text-sm font-semibold text-gray-800">
-                                    {new Date(trip.startDateTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <Clock size={16} className="text-gray-500" />
-                            <div>
-                                <p className="text-xs text-gray-500">Time</p>
-                                <p className="text-sm font-semibold text-gray-800">
-                                    {new Date(trip.startDateTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <Route size={16} className="text-gray-500" />
-                            <div>
-                                <p className="text-xs text-gray-500">Distance</p>
-                                <p className="text-sm font-semibold text-gray-800">{Math.floor(trip.distance || 0)} km</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <Clock size={16} className="text-gray-500" />
-                            <div>
-                                <p className="text-xs text-gray-500">Duration</p>
-                                <p className="text-sm font-semibold text-gray-800">
-                                    {(() => {
-                                        const totalMinutes = Math.floor(trip.duration || 0);
-                                        const days = Math.floor(totalMinutes / (24 * 60));
-                                        const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
-                                        const minutes = Math.floor(totalMinutes % 60);
-
-                                        if (days > 0) {
-                                            return `${days}d ${hours}h ${minutes}m`;
-                                        } else if (hours > 0) {
-                                            return `${hours}h ${minutes}m`;
-                                        } else {
-                                            return `${minutes}m`;
-                                        }
-                                    })()}
-                                </p>
-                            </div>
-                        </div>
+                    <div>
+                        <p className="text-xs text-gray-500 font-semibold">FROM</p>
+                        <p className="text-sm font-bold text-gray-800">{trip.startDestination.name}</p>
+                        {trip.startDestination.address && (
+                            <p className="text-xs text-gray-600">{trip.startDestination.address}</p>
+                        )}
                     </div>
+                </div>
 
-                    {/* Customer Info (for passenger trips) */}
-                    {trip.tripType === 'passenger' && trip.customerName && (
-                        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-sm">
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="bg-blue-600 p-2 rounded-lg">
-                                    <User size={20} className="text-white" />
+                {/* End Destination */}
+                <div className="flex items-start gap-3">
+                    <div className="bg-red-100 p-2 rounded-full">
+                        <MapPin size={20} className="text-red-600" />
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-500 font-semibold">TO</p>
+                        <p className="text-sm font-bold text-gray-800">{trip.endDestination.name}</p>
+                        {trip.endDestination.address && (
+                            <p className="text-xs text-gray-600">{trip.endDestination.address}</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Trip Details */}
+            <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2">
+                    <Calendar size={16} className="text-gray-500" />
+                    <div>
+                        <p className="text-xs text-gray-500">Start</p>
+                        <p className="text-sm font-semibold text-gray-800">
+                            {new Date(trip.startDateTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Clock size={16} className="text-gray-500" />
+                    <div>
+                        <p className="text-xs text-gray-500">Time</p>
+                        <p className="text-sm font-semibold text-gray-800">
+                            {new Date(trip.startDateTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Route size={16} className="text-gray-500" />
+                    <div>
+                        <p className="text-xs text-gray-500">Distance</p>
+                        <p className="text-sm font-semibold text-gray-800">{Math.floor(trip.distance || 0)} km</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Clock size={16} className="text-gray-500" />
+                    <div>
+                        <p className="text-xs text-gray-500">Duration</p>
+                        <p className="text-sm font-semibold text-gray-800">
+                            {(() => {
+                                const totalMinutes = Math.floor(trip.duration || 0);
+                                const days = Math.floor(totalMinutes / (24 * 60));
+                                const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+                                const minutes = Math.floor(totalMinutes % 60);
+                                
+                                if (days > 0) {
+                                    return `${days}d ${hours}h ${minutes}m`;
+                                } else if (hours > 0) {
+                                    return `${hours}h ${minutes}m`;
+                                } else {
+                                    return `${minutes}m`;
+                                }
+                            })()}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Customer Info (for passenger trips) */}
+            {trip.tripType === 'passenger' && trip.customerName && (
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="bg-blue-600 p-2 rounded-lg">
+                            <User size={20} className="text-white" />
+                        </div>
+                        <h3 className="text-base font-bold text-blue-900">Customer Details</h3>
+                    </div>
+                    <div className="space-y-2 ml-10">
+                        <p className="text-base font-bold text-gray-900">{trip.customerName}</p>
+                        {trip.customerContact && (
+                            <div className="flex items-center gap-2 text-gray-700">
+                                <Phone size={18} className="text-blue-600" />
+                                <p className="text-sm font-medium">{trip.customerContact}</p>
+                            </div>
+                        )}
+                        {trip.customerEmail && (
+                            <div className="flex items-center gap-2 text-gray-700">
+                                <Mail size={18} className="text-blue-600" />
+                                <p className="text-sm font-medium">{trip.customerEmail}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Stops (if any) */}
+            {trip.stops && trip.stops.length > 0 && (
+                <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <Package size={16} />
+                        Stops ({trip.stops.length})
+                    </h4>
+                    <div className="space-y-2">
+                        {trip.stops.map((stop, index) => (
+                            <div key={index} className="flex items-start gap-2 p-3 bg-gray-50 rounded border border-gray-200">
+                                <span className="text-xs font-bold text-gray-500 mt-1 bg-gray-200 w-6 h-6 rounded-full flex items-center justify-center">{index + 1}</span>
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-gray-800">{stop.name}</p>
+                                    {stop.address && (
+                                        <p className="text-xs text-gray-600 mt-0.5">{stop.address}</p>
+                                    )}
+                                    <span className={`inline-block mt-1.5 px-2 py-0.5 rounded text-xs font-medium ${
+                                        stop.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                        stop.status === 'reached' ? 'bg-green-100 text-green-800' :
+                                        'bg-blue-100 text-blue-800'
+                                    }`}>
+                                        {stop.status}
+                                    </span>
                                 </div>
-                                <h3 className="text-base font-bold text-blue-900">Customer Details</h3>
                             </div>
-                            <div className="space-y-2 ml-10">
-                                <p className="text-base font-bold text-gray-900">{trip.customerName}</p>
-                                {trip.customerContact && (
-                                    <div className="flex items-center gap-2 text-gray-700">
-                                        <Phone size={18} className="text-blue-600" />
-                                        <p className="text-sm font-medium">{trip.customerContact}</p>
-                                    </div>
-                                )}
-                                {trip.customerEmail && (
-                                    <div className="flex items-center gap-2 text-gray-700">
-                                        <Mail size={18} className="text-blue-600" />
-                                        <p className="text-sm font-medium">{trip.customerEmail}</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Stops (if any) */}
-                    {trip.stops && trip.stops.length > 0 && (
-                        <div>
-                            <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                                <Package size={16} />
-                                Stops ({trip.stops.length})
-                            </h4>
-                            <div className="space-y-2">
-                                {trip.stops.map((stop, index) => (
-                                    <div key={index} className="flex items-start gap-2 p-3 bg-gray-50 rounded border border-gray-200">
-                                        <span className="text-xs font-bold text-gray-500 mt-1 bg-gray-200 w-6 h-6 rounded-full flex items-center justify-center">{index + 1}</span>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-semibold text-gray-800">{stop.name}</p>
-                                            {stop.address && (
-                                                <p className="text-xs text-gray-600 mt-0.5">{stop.address}</p>
-                                            )}
-                                            <span className={`inline-block mt-1.5 px-2 py-0.5 rounded text-xs font-medium ${stop.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                                    stop.status === 'reached' ? 'bg-green-100 text-green-800' :
-                                                        'bg-blue-100 text-blue-800'
-                                                }`}>
-                                                {stop.status}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
+                </div>
+            )}
                 </div>
             </div>
 
