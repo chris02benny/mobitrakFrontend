@@ -39,8 +39,11 @@ const DriverCard = ({ employment, liveData, onRequestVideo }) => {
         ? `${userDetails.firstName} ${userDetails.lastName || ''}`.trim()
         : 'Unknown Driver';
 
-    const isMonitoring = liveData && liveData.status !== 'OFFLINE';
+    // Use monitoringActive as source of truth for monitoring status
+    const isMonitoringActive = liveData && liveData.monitoringActive === true;
     const isDrowsy = liveData?.status === 'DROWSY';
+    const isOffline = liveData?.status === 'OFFLINE';
+    const isInactive = liveData?.status === 'INACTIVE';
     const perclosPct = Math.min((liveData?.perclos || 0) * 100, 100);
     const earVal = liveData?.ear || 0;
 
@@ -54,35 +57,35 @@ const DriverCard = ({ employment, liveData, onRequestVideo }) => {
     return (
         <div className={`rounded-2xl border overflow-hidden shadow-sm transition-all duration-300 ${isDrowsy
             ? 'border-red-300 shadow-red-100 bg-red-50'
-            : isMonitoring
+            : isMonitoringActive
                 ? 'border-green-200 bg-white shadow-green-50'
                 : 'border-gray-200 bg-white'
             }`}>
             {/* ── Card Header ── */}
-            <div className={`px-4 py-3.5 flex items-center justify-between ${isDrowsy ? 'bg-red-500' : isMonitoring ? 'bg-gray-800' : 'bg-gray-100'
+            <div className={`px-4 py-3.5 flex items-center justify-between ${isDrowsy ? 'bg-red-500' : isMonitoringActive ? 'bg-gray-800' : 'bg-gray-100'
                 }`}>
                 <div className="flex items-center gap-3">
                     {/* Avatar */}
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${isMonitoring ? 'bg-white/20' : 'bg-gray-200'
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${isMonitoringActive ? 'bg-white/20' : 'bg-gray-200'
                         }`}>
                         {userDetails?.profileImage ? (
                             <img src={userDetails.profileImage} alt="" className="w-full h-full object-cover" />
                         ) : (
-                            <User size={18} className={isMonitoring ? 'text-white' : 'text-gray-400'} />
+                            <User size={18} className={isMonitoringActive ? 'text-white' : 'text-gray-400'} />
                         )}
                     </div>
                     <div>
-                        <p className={`text-sm font-semibold leading-tight ${isMonitoring ? 'text-white' : 'text-gray-700'}`}>
+                        <p className={`text-sm font-semibold leading-tight ${isMonitoringActive ? 'text-white' : 'text-gray-700'}`}>
                             {name}
                         </p>
-                        <p className={`text-xs mt-0.5 ${isMonitoring ? 'text-white/60' : 'text-gray-400'}`}>
+                        <p className={`text-xs mt-0.5 ${isMonitoringActive ? 'text-white/60' : 'text-gray-400'}`}>
                             {userDetails?.email || 'No email'}
                         </p>
                     </div>
                 </div>
 
-                {/* Status badge */}
-                {isMonitoring ? (
+                {/* Status badge — based on monitoringActive */}
+                {isMonitoringActive ? (
                     <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${isDrowsy
                         ? 'bg-white text-red-600 animate-pulse'
                         : 'bg-green-500/30 text-green-200 border border-green-400/40'
@@ -93,14 +96,14 @@ const DriverCard = ({ employment, liveData, onRequestVideo }) => {
                 ) : (
                     <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-500">
                         <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                        Not Monitoring
+                        {isInactive ? 'Monitoring Stopped' : 'Not Monitoring'}
                     </span>
                 )}
             </div>
 
             {/* ── Card Body ── */}
             <div className="p-4 space-y-3">
-                {isMonitoring ? (
+                {isMonitoringActive ? (
                     <>
                         {/* PERCLOS bar */}
                         <div>
@@ -133,7 +136,7 @@ const DriverCard = ({ employment, liveData, onRequestVideo }) => {
                         </div>
                     </>
                 ) : (
-                    /* Greyed out placeholder metrics */
+                    /* Greyed out when not monitoring */
                     <>
                         <div>
                             <div className="flex justify-between text-xs text-gray-300 mb-1">
@@ -146,7 +149,7 @@ const DriverCard = ({ employment, liveData, onRequestVideo }) => {
                         </div>
                         <div className="w-full py-2 text-xs font-medium bg-gray-100 text-gray-400 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed select-none">
                             <EyeOff size={14} />
-                            Driver not active
+                            {isInactive ? 'Driver stopped monitoring' : 'Driver not active'}
                         </div>
                     </>
                 )}
@@ -188,7 +191,7 @@ const LiveMonitoringDashboard = () => {
     // ── Counts ─────────────────────────────────────────────────────────────
     const activeCount = employees.filter(emp => {
         const id = emp.driverId?._id || emp.driverId?.userId;
-        return id && driverStatuses[id] && driverStatuses[id].status !== 'OFFLINE';
+        return id && driverStatuses[id] && driverStatuses[id].monitoringActive === true;
     }).length;
 
     const drowsyCount = Object.values(driverStatuses).filter(d => d.status === 'DROWSY').length;

@@ -78,7 +78,14 @@ const getUser = () => {
 async function postTelemetry(payload) {
     try {
         const token = localStorage.getItem('authToken');
-        await fetch(`${API_BASE_URL}/api/realtime/driver-monitoring`, {
+        
+        // ⚠️ Guard: validate driverId is present in payload
+        if (!payload.driverId) {
+            console.error('[monitoring] Telemetry blocked: driverId missing from auth session. Check localStorage.user.');
+            return;
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/api/realtime/driver-monitoring`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -86,10 +93,14 @@ async function postTelemetry(payload) {
             },
             body: JSON.stringify(payload),
         });
+
+        if (!response.ok && response.status === 400) {
+            console.error('[monitoring] Backend rejected payload (400 Bad Request):', await response.json());
+        }
     } catch (err) {
         console.error('[monitoring] Failed to post telemetry:', err.message);
     }
-}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
@@ -207,11 +218,12 @@ const DriverMonitoring = () => {
 
             // POST to backend → Pusher triggers fleet managers
             postTelemetry({
-                driverId: user._id || user.id, // Fixed: user._id is what mongo provides
+                driverId: user._id || user.id,
                 tripId: activeTripId || null,
                 status: currentStatus,
                 perclos: parseFloat(currentPerclos.toFixed(4)),
                 ear: parseFloat(meanEAR.toFixed(4)),
+                monitoringActive: true,
                 timestamp: new Date().toISOString(),
             });
 
@@ -229,6 +241,21 @@ const DriverMonitoring = () => {
         enableAudioSystem();
 
         try {
+            const user = getUser();
+            const activeTripId = sessionStorage.getItem('activeTripId') || null;
+            
+            // Emit session-start event to notify fleet manager
+            await postTelemetry({
+                driverId: user._id || user.id,
+                tripId: activeTripId,
+                monitoringActive: true,
+                status: 'ALERT',
+                perclos: 0,
+                ear: 0,
+                source: 'session-start',
+                timestamp: new Date().toISOString(),
+            });
+            
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { width: 640, height: 480, facingMode: 'user' },
                 audio: false,
@@ -300,7 +327,22 @@ const DriverMonitoring = () => {
     }, [onFaceMeshResults, enableAudioSystem]);
 
     // ── Stop Monitoring ───────────────────────────────────────────────────────
-    const stopMonitoring = useCallback(() => {
+    const stopMonitoring = useCallback(async () => {
+        const user = getUser();
+        const activeTripId = sessionStorage.getItem('activeTripId') || null;
+        
+        // Emit session-stop event before closing streams
+        await postTelemetry({
+            driverId: user._id || user.id,
+            tripId: activeTripId,
+            monitoringActive: false,
+            status: 'INACTIVE',
+            perclos: 0,
+            ear: 0,
+            source: 'session-stop',
+            timestamp: new Date().toISOString(),
+        }).catch(err => console.warn('[monitoring] Failed to send stop event:', err.message));
+        
         if (cameraRef.current) {
             try {
                 // Not all @mediapipe/camera_utils versions retain .stop() on the generic object

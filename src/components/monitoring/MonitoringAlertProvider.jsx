@@ -124,7 +124,7 @@ const MonitoringAlertProvider = ({ children }) => {
 
     // ── Handle incoming monitoring data ───────────────────────────────────────
     function handleMonitoringData(data) {
-        const { driverId, status, perclos, ear, timestamp, driverName } = data;
+        const { driverId, status, healthStatus, monitoringActive, perclos, ear, timestamp, driverName } = data;
         if (!driverId) return;
 
         setDriverStatuses(prev => ({
@@ -133,7 +133,8 @@ const MonitoringAlertProvider = ({ children }) => {
                 ...prev[driverId],
                 driverId,
                 driverName: driverName || null,
-                status,
+                status: healthStatus || status, // Use healthStatus if provided, else status
+                monitoringActive: monitoringActive !== undefined ? monitoringActive : true, // Default to true
                 perclos: perclos ?? 0,
                 ear: ear ?? 0,
                 timestamp: timestamp || new Date().toISOString(),
@@ -141,8 +142,11 @@ const MonitoringAlertProvider = ({ children }) => {
             },
         }));
 
-        // Global alert toast for DROWSY — shown on ANY page
-        if (status === 'DROWSY') {
+        // Global alert toast for DROWSY — only when drive is actively monitoring
+        const isCorelyMonitoring = monitoringActive !== undefined ? monitoringActive : true;
+        const isDrowsy = (healthStatus || status) === 'DROWSY';
+        
+        if (isDrowsy && isCorelyMonitoring) {
             const name = driverName || formatDriverId(driverId);
             const perclosPct = ((perclos || 0) * 100).toFixed(1);
 
@@ -182,8 +186,11 @@ const MonitoringAlertProvider = ({ children }) => {
                 let changed = false;
                 Object.keys(next).forEach(id => {
                     const lastSeen = next[id].lastSeen ? new Date(next[id].lastSeen).getTime() : 0;
-                    if (now - lastSeen > 30_000 && next[id].status !== 'OFFLINE') {
-                        next[id] = { ...next[id], status: 'OFFLINE' };
+                    const timeSinceLastSeen = now - lastSeen;
+                    
+                    // Only mark OFFLINE if >30s AND not already INACTIVE (explicit stop event)
+                    if (timeSinceLastSeen > 30_000 && next[id].status !== 'OFFLINE' && next[id].status !== 'INACTIVE') {
+                        next[id] = { ...next[id], status: 'OFFLINE', monitoringActive: false };
                         changed = true;
                     }
                 });
