@@ -71,7 +71,47 @@ const MEDIAPIPE_CAMERA_CDN =
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const getUser = () => {
-    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+    try {
+        // First, try to get user from localStorage
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            const user = JSON.parse(storedUser);
+            if (user && (user._id || user.id)) {
+                return user;
+            }
+        }
+        
+        // Fallback: Extract from JWT token if localStorage.user is empty or missing ID
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            try {
+                // JWT format: header.payload.signature
+                const payload = token.split('.')[1];
+                if (payload) {
+                    const decoded = JSON.parse(atob(payload));
+                    console.log('[monitoring] Extracted user from JWT:', { 
+                        userId: decoded.userId || decoded.id || decoded.sub,
+                        email: decoded.email,
+                        name: decoded.name
+                    });
+                    return {
+                        _id: decoded.userId || decoded.id || decoded.sub,
+                        id: decoded.userId || decoded.id || decoded.sub,
+                        email: decoded.email,
+                        name: decoded.name
+                    };
+                }
+            } catch (decodeErr) {
+                console.warn('[monitoring] Failed to decode JWT:', decodeErr.message);
+            }
+        }
+        
+        console.warn('[monitoring] No user found in localStorage or JWT token');
+        return {};
+    } catch (err) {
+        console.error('[monitoring] getUser() error:', err.message);
+        return {};
+    }
 };
 
 // Post telemetry to backend which then triggers Pusher

@@ -41,7 +41,37 @@ export const useMonitoringContext = () => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getUserFromStorage = () => {
-    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+    try {
+        // First, try to get user from localStorage
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            const user = JSON.parse(storedUser);
+            if (user && user._id) return user;
+        }
+        
+        // Fallback: Extract from JWT token
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            try {
+                const payload = token.split('.')[1];
+                if (payload) {
+                    const decoded = JSON.parse(atob(payload));
+                    return {
+                        _id: decoded.userId || decoded.id || decoded.sub,
+                        id: decoded.userId || decoded.id || decoded.sub,
+                        role: decoded.role,
+                        email: decoded.email
+                    };
+                }
+            } catch (_) {
+                return {};
+            }
+        }
+        
+        return {};
+    } catch {
+        return {};
+    }
 };
 
 const formatDriverId = (id) => {
