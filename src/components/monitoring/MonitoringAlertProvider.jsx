@@ -131,18 +131,7 @@ const MonitoringAlertProvider = ({ children }) => {
             setSocketReady(false);
         });
 
-        // Subscribe to global monitoring channel (all drivers broadcast here)
-        console.log('[MonitoringProvider] 🔔 Subscribing to: global-monitoring');
-        const globalChannel = pusherClient.subscribe('global-monitoring');
-        channelRef.current = globalChannel;
-
-        globalChannel.bind('subscribe', () => {
-            console.log('[MonitoringProvider] ✅ Successfully subscribed to global-monitoring');
-        });
-
-        globalChannel.bind('admin_monitoring', handleMonitoringData);
-
-        // Also subscribe to this fleet manager's private channel
+        // Subscribe to this fleet manager's private channel (PRIMARY)
         const u = getUserFromStorage();
         const managerId = u?.id || u?._id;
         if (managerId) {
@@ -153,11 +142,23 @@ const MonitoringAlertProvider = ({ children }) => {
                 console.log('[MonitoringProvider] ✅ Successfully subscribed to fleet-' + managerId);
             });
             
-            // Bind admin_monitoring on fleet channel too (data arrives on both)
-            fleetChannel.bind('admin_monitoring', handleMonitoringData);
+            // Bind driver-alert event (MAIN)
+            fleetChannel.bind('driver-alert', handleMonitoringData);
+            
+            channelRef.current = fleetChannel;
         } else {
             console.warn('[MonitoringProvider] ⚠️  No managerId found - fleet-specific channel subscription skipped');
         }
+
+        // OPTIONAL: Also subscribe to global channel for fallback visibility
+        console.log('[MonitoringProvider] 🔔 Subscribing to: global-monitoring (fallback)');
+        const globalChannel = pusherClient.subscribe('global-monitoring');
+        
+        globalChannel.bind('subscribe', () => {
+            console.log('[MonitoringProvider] ✅ Successfully subscribed to global-monitoring');
+        });
+        
+        globalChannel.bind('driver-alert', handleMonitoringData);
 
         return () => {
             try {
@@ -183,19 +184,15 @@ const MonitoringAlertProvider = ({ children }) => {
 
     // ── Handle incoming monitoring data ───────────────────────────────────────
     function handleMonitoringData(data) {
-        const { driverId, status, healthStatus, monitoringActive, perclos, ear, timestamp, driverName } = data;
+        const { driverId, status, timestamp } = data;
         if (!driverId) {
             console.warn('[MonitoringProvider] ⚠️  Received event with no driverId:', data);
             return;
         }
 
-        console.log('[MonitoringProvider] 📡 Received admin_monitoring event:', {
+        console.log('🔥 DRIVER ALERT RECEIVED:', {
             driverId: formatDriverId(driverId),
-            status: healthStatus || status,
-            monitoringActive,
-            perclos,
-            ear,
-            driverName,
+            status,
             timestamp
         });
 
@@ -204,23 +201,15 @@ const MonitoringAlertProvider = ({ children }) => {
             [driverId]: {
                 ...prev[driverId],
                 driverId,
-                driverName: driverName || null,
-                status: healthStatus || status, // Use healthStatus if provided, else status
-                monitoringActive: monitoringActive !== undefined ? monitoringActive : true, // Default to true
-                perclos: perclos ?? 0,
-                ear: ear ?? 0,
+                status,
                 timestamp: timestamp || new Date().toISOString(),
                 lastSeen: new Date(),
             },
         }));
 
-        // Global alert toast for DROWSY — only when drive is actively monitoring
-        const isCorelyMonitoring = monitoringActive !== undefined ? monitoringActive : true;
-        const isDrowsy = (healthStatus || status) === 'DROWSY';
-        
-        if (isDrowsy && isCorelyMonitoring) {
-            const name = driverName || formatDriverId(driverId);
-            const perclosPct = ((perclos || 0) * 100).toFixed(1);
+        // Global alert toast for DROWSY
+        if (status === 'DROWSY') {
+            const name = formatDriverId(driverId);
 
             console.log('[MonitoringProvider] 🚨 DROWSY ALERT triggered for:', name);
 
@@ -231,10 +220,7 @@ const MonitoringAlertProvider = ({ children }) => {
                             🚨 Drowsiness Alert
                         </strong>
                         <span style={{ fontSize: '0.85rem' }}>
-                            <strong>{name}</strong> is showing signs of drowsiness.
-                        </span>
-                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>
-                            PERCLOS: {perclosPct}%
+                            Driver <strong>{name}</strong> is showing signs of drowsiness.
                         </span>
                     </div>
                 ),

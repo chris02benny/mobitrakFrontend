@@ -70,6 +70,35 @@ const MEDIAPIPE_CAMERA_CDN =
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * Resolve fleetManagerId from stored user, JWT, or fallback employment API.
+ * Cache result so repeated calls don't re-fetch.
+ */
+let cachedFleetManagerId = null;
+
+async function resolveFleetManagerId(userId) {
+    // Return cached value if already resolved
+    if (cachedFleetManagerId) {
+        return cachedFleetManagerId;
+    }
+
+    try {
+        // Try to get from hiringService if available
+        if (typeof window !== 'undefined' && window.__hiringService) {
+            const employment = await window.__hiringService.getCurrentEmployment();
+            if (employment?.data?.companyId) {
+                cachedFleetManagerId = employment.data.companyId;
+                console.log('[monitoring] Resolved fleetManagerId from employment API:', cachedFleetManagerId);
+                return cachedFleetManagerId;
+            }
+        }
+    } catch (err) {
+        console.warn('[monitoring] Fallback employment lookup failed:', err.message);
+    }
+
+    return null;
+}
+
 const getUser = () => {
     try {
         // First, try to get user from localStorage
@@ -101,7 +130,8 @@ const getUser = () => {
                         id: userId,
                         email: userObj.email,
                         name: userObj.name,
-                        role: userObj.role
+                        role: userObj.role,
+                        fleetManagerId: userObj.fleetManagerId || null
                     };
                 }
             } catch (err) {
@@ -123,42 +153,30 @@ async function postTelemetry(payload) {
         const token = localStorage.getItem('authToken');
         const user = getUser();
         
-        // ⚠️ CRITICAL: Guard - validate driverId is present
-        if (!payload.driverId) {
-            console.error('[monitoring] ❌ Telemetry BLOCKED: driverId missing from payload. User object:', user);
-            return;
-        }
-        
-        // ⚠️ CRITICAL: Guard - validate tripId is present (REQUIRED FOR FLEET MANAGER UPDATES)
-        if (!payload.tripId) {
-            console.error('[monitoring] ⚠️  Telemetry WARNING: tripId is missing or null. Fleet manager events may not trigger.', {
-                driverId: payload.driverId,
-                tripIdValue: payload.tripId,
-                sessionStorageActiveTripId: sessionStorage.getItem('activeTripId'),
-                source: payload.source
-            });
-            // Don't block - still send to global channel, but log warning
-        }
-        
-        // ⚠️ Guard: ensure only drivers send telemetry
+        // ⚠️ CRITICAL Guard 1: ensure only drivers send telemetry
         const userRole = user?.role;
         if (userRole && userRole !== 'driver') {
             console.error('[monitoring] ❌ Telemetry BLOCKED: user is not a driver. Role:', userRole, 'User:', user);
             return;
         }
         
-        // 📊 LOG FULL PAYLOAD BEFORE SENDING
-        console.log('[monitoring] 📤 Sending telemetry payload:', {
+        // ⚠️ CRITICAL Guard 2: validate driverId and fleetManagerId are present
+        if (!payload.driverId || !payload.fleetManagerId) {
+            console.error('[monitoring] ❌ Telemetry blocked: missing driverId or fleetManagerId', payload);
+            return;
+        }
+        
+        // 🚀 LOG AS REQUESTED: Sending telemetry with full payload details
+        console.log('🚀 Sending telemetry:', {
             driverId: payload.driverId,
-            tripId: payload.tripId,
+            fleetManagerId: payload.fleetManagerId,
             status: payload.status,
             monitoringActive: payload.monitoringActive,
             source: payload.source,
+            timestamp: payload.timestamp,
             perclos: payload.perclos,
             ear: payload.ear,
-            timestamp: payload.timestamp,
-            userRole,
-            apiBaseUrl: API_BASE_URL
+            userRole
         });
         
         const url = `${API_BASE_URL}/api/realtime/driver-monitoring`;
@@ -314,12 +332,11 @@ const DriverMonitoring = () => {
 
         if (statusChanged || intervalElapsed) {
             const user = getUser();
-            const activeTripId = sessionStorage.getItem('activeTripId') || null;
 
             // POST to backend → Pusher triggers fleet managers
             postTelemetry({
                 driverId: user._id || user.id,
-                tripId: activeTripId || null,
+                fleetManagerId: user.fleetManagerId,
                 status: currentStatus,
                 perclos: parseFloat(currentPerclos.toFixed(4)),
                 ear: parseFloat(meanEAR.toFixed(4)),
@@ -343,12 +360,11 @@ const DriverMonitoring = () => {
 
         try {
             const user = getUser();
-            const activeTripId = sessionStorage.getItem('activeTripId') || null;
             
             // Emit session-start event to notify fleet manager
             await postTelemetry({
                 driverId: user._id || user.id,
-                tripId: activeTripId,
+                fleetManagerId: user.fleetManagerId,
                 monitoringActive: true,
                 status: 'ALERT',
                 perclos: 0,
@@ -430,12 +446,11 @@ const DriverMonitoring = () => {
     // ── Stop Monitoring ───────────────────────────────────────────────────────
     const stopMonitoring = useCallback(async () => {
         const user = getUser();
-        const activeTripId = sessionStorage.getItem('activeTripId') || null;
         
         // Emit session-stop event before closing streams
         await postTelemetry({
             driverId: user._id || user.id,
-            tripId: activeTripId,
+            fleetManagerId: user.fleetManagerId,
             monitoringActive: false,
             status: 'INACTIVE',
             perclos: 0,
