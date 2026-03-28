@@ -100,7 +100,7 @@ async function postTelemetry(payload) {
     } catch (err) {
         console.error('[monitoring] Failed to post telemetry:', err.message);
     }
-
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
