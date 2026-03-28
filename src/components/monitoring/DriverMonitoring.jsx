@@ -81,9 +81,11 @@ async function postTelemetry(payload) {
         
         // ⚠️ Guard: validate driverId is present in payload
         if (!payload.driverId) {
-            console.error('[monitoring] Telemetry blocked: driverId missing from auth session. Check localStorage.user.');
+            console.error('[monitoring] Telemetry blocked: driverId missing from payload. User object:', getUser());
             return;
         }
+        
+        console.log('[monitoring] Posting telemetry:', { driverId: payload.driverId, source: payload.source, status: payload.status });
         
         const response = await fetch(`${API_BASE_URL}/api/realtime/driver-monitoring`, {
             method: 'POST',
@@ -94,8 +96,13 @@ async function postTelemetry(payload) {
             body: JSON.stringify(payload),
         });
 
-        if (!response.ok && response.status === 400) {
-            console.error('[monitoring] Backend rejected payload (400 Bad Request):', await response.json());
+        if (response.ok) {
+            console.log('[monitoring] Telemetry posted successfully:', { status: response.status });
+        } else if (response.status === 400) {
+            const errorData = await response.json();
+            console.error('[monitoring] Backend rejected payload (400):', errorData);
+        } else {
+            console.error('[monitoring] Backend error:', { status: response.status, statusText: response.statusText });
         }
     } catch (err) {
         console.error('[monitoring] Failed to post telemetry:', err.message);
