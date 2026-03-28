@@ -112,6 +112,8 @@ const MonitoringAlertProvider = ({ children }) => {
     useEffect(() => {
         if (!isFleetManager) return;
 
+        console.log('[MonitoringProvider] ✅ Fleet manager detected, initializing Pusher subscriptions...');
+
         // Connect to Pusher
         const pusherClient = new Pusher(PUSHER_KEY, {
             cluster: PUSHER_CLUSTER,
@@ -120,33 +122,46 @@ const MonitoringAlertProvider = ({ children }) => {
         pusherRef.current = pusherClient;
 
         pusherClient.connection.bind('connected', () => {
-            console.log('[MonitoringProvider] Pusher connected');
+            console.log('[MonitoringProvider] ✅ Pusher socket connected');
             setSocketReady(true);
         });
 
         pusherClient.connection.bind('disconnected', () => {
-            console.log('[MonitoringProvider] Pusher disconnected');
+            console.log('[MonitoringProvider] ❌ Pusher socket disconnected');
             setSocketReady(false);
         });
 
         // Subscribe to global monitoring channel (all drivers broadcast here)
+        console.log('[MonitoringProvider] 🔔 Subscribing to: global-monitoring');
         const globalChannel = pusherClient.subscribe('global-monitoring');
         channelRef.current = globalChannel;
+
+        globalChannel.bind('subscribe', () => {
+            console.log('[MonitoringProvider] ✅ Successfully subscribed to global-monitoring');
+        });
+
+        globalChannel.bind('admin_monitoring', handleMonitoringData);
 
         // Also subscribe to this fleet manager's private channel
         const u = getUserFromStorage();
         const managerId = u?.id || u?._id;
         if (managerId) {
+            console.log('[MonitoringProvider] 🔔 Subscribing to: fleet-' + managerId);
             const fleetChannel = pusherClient.subscribe(`fleet-${managerId}`);
+            
+            fleetChannel.bind('subscribe', () => {
+                console.log('[MonitoringProvider] ✅ Successfully subscribed to fleet-' + managerId);
+            });
+            
             // Bind admin_monitoring on fleet channel too (data arrives on both)
             fleetChannel.bind('admin_monitoring', handleMonitoringData);
+        } else {
+            console.warn('[MonitoringProvider] ⚠️  No managerId found - fleet-specific channel subscription skipped');
         }
-
-        // Bind admin_monitoring event on global channel
-        globalChannel.bind('admin_monitoring', handleMonitoringData);
 
         return () => {
             try {
+                console.log('[MonitoringProvider] 🧹 Cleaning up Pusher subscriptions...');
                 if (channelRef.current) {
                     channelRef.current.unbind_all();
                 }
@@ -169,7 +184,20 @@ const MonitoringAlertProvider = ({ children }) => {
     // ── Handle incoming monitoring data ───────────────────────────────────────
     function handleMonitoringData(data) {
         const { driverId, status, healthStatus, monitoringActive, perclos, ear, timestamp, driverName } = data;
-        if (!driverId) return;
+        if (!driverId) {
+            console.warn('[MonitoringProvider] ⚠️  Received event with no driverId:', data);
+            return;
+        }
+
+        console.log('[MonitoringProvider] 📡 Received admin_monitoring event:', {
+            driverId: formatDriverId(driverId),
+            status: healthStatus || status,
+            monitoringActive,
+            perclos,
+            ear,
+            driverName,
+            timestamp
+        });
 
         setDriverStatuses(prev => ({
             ...prev,
@@ -193,6 +221,8 @@ const MonitoringAlertProvider = ({ children }) => {
         if (isDrowsy && isCorelyMonitoring) {
             const name = driverName || formatDriverId(driverId);
             const perclosPct = ((perclos || 0) * 100).toFixed(1);
+
+            console.log('[MonitoringProvider] 🚨 DROWSY ALERT triggered for:', name);
 
             toast.error(
                 (t) => (

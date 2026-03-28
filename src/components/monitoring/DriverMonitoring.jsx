@@ -123,23 +123,45 @@ async function postTelemetry(payload) {
         const token = localStorage.getItem('authToken');
         const user = getUser();
         
-        // ⚠️ Guard: validate driverId is present in payload
+        // ⚠️ CRITICAL: Guard - validate driverId is present
         if (!payload.driverId) {
-            console.error('[monitoring] Telemetry blocked: driverId missing from payload. User object:', user);
+            console.error('[monitoring] ❌ Telemetry BLOCKED: driverId missing from payload. User object:', user);
             return;
+        }
+        
+        // ⚠️ CRITICAL: Guard - validate tripId is present (REQUIRED FOR FLEET MANAGER UPDATES)
+        if (!payload.tripId) {
+            console.error('[monitoring] ⚠️  Telemetry WARNING: tripId is missing or null. Fleet manager events may not trigger.', {
+                driverId: payload.driverId,
+                tripIdValue: payload.tripId,
+                sessionStorageActiveTripId: sessionStorage.getItem('activeTripId'),
+                source: payload.source
+            });
+            // Don't block - still send to global channel, but log warning
         }
         
         // ⚠️ Guard: ensure only drivers send telemetry
         const userRole = user?.role;
         if (userRole && userRole !== 'driver') {
-            console.error('[monitoring] Telemetry blocked: user is not a driver. Role:', userRole, 'User:', user);
+            console.error('[monitoring] ❌ Telemetry BLOCKED: user is not a driver. Role:', userRole, 'User:', user);
             return;
         }
         
-        console.log('[monitoring] Posting telemetry:', { driverId: payload.driverId, source: payload.source, status: payload.status, userRole });
+        // 📊 LOG FULL PAYLOAD BEFORE SENDING
+        console.log('[monitoring] 📤 Sending telemetry payload:', {
+            driverId: payload.driverId,
+            tripId: payload.tripId,
+            status: payload.status,
+            monitoringActive: payload.monitoringActive,
+            source: payload.source,
+            perclos: payload.perclos,
+            ear: payload.ear,
+            timestamp: payload.timestamp,
+            userRole,
+            apiBaseUrl: API_BASE_URL
+        });
         
         const url = `${API_BASE_URL}/api/realtime/driver-monitoring`;
-        console.log('[monitoring] Request URL:', url);
         
         const response = await fetch(url, {
             method: 'POST',
@@ -153,27 +175,29 @@ async function postTelemetry(payload) {
         });
 
         if (response.ok) {
-            console.log('[monitoring] Telemetry posted successfully:', { status: response.status });
+            console.log('[monitoring] ✅ Telemetry posted successfully:', { status: response.status, driverId: payload.driverId });
         } else if (response.status === 400) {
             const errorData = await response.json();
-            console.error('[monitoring] Backend rejected payload (400):', errorData);
+            console.error('[monitoring] ❌ Backend rejected payload (400):', errorData);
         } else if (response.status === 401) {
-            console.error('[monitoring] Unauthorized (401) - check authentication:', { url });
+            console.error('[monitoring] ❌ Unauthorized (401) - check authentication:', { url });
         } else if (response.status === 403) {
-            console.error('[monitoring] Forbidden (403) - check permissions:', { url });
+            console.error('[monitoring] ❌ Forbidden (403) - check permissions:', { url });
         } else if (response.status === 404) {
-            console.error('[monitoring] Endpoint not found (404):', { url, statusText: response.statusText });
+            console.error('[monitoring] ❌ Endpoint not found (404):', { url, statusText: response.statusText });
+        } else if (response.status === 503) {
+            const errorData = await response.json();
+            console.error('[monitoring] ❌ Service Unavailable (503):', errorData);
         } else {
-            console.error('[monitoring] Backend error:', { status: response.status, statusText: response.statusText, url });
+            console.error('[monitoring] ❌ Backend error:', { status: response.status, statusText: response.statusText, url });
         }
     } catch (err) {
         const url = `${API_BASE_URL}/api/realtime/driver-monitoring`;
-        console.error('[monitoring] Failed to post telemetry - check network and CORS:', {
+        console.error('[monitoring] ❌ Network error - failed to send telemetry:', {
             message: err.message,
             attemptedUrl: url,
             apiBaseUrl: API_BASE_URL,
             errorType: err.name,
-            stack: err.stack
         });
     }
 }
