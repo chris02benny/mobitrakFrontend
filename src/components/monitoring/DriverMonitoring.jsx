@@ -121,14 +121,22 @@ const getUser = () => {
 async function postTelemetry(payload) {
     try {
         const token = localStorage.getItem('authToken');
+        const user = getUser();
         
         // ⚠️ Guard: validate driverId is present in payload
         if (!payload.driverId) {
-            console.error('[monitoring] Telemetry blocked: driverId missing from payload. User object:', getUser());
+            console.error('[monitoring] Telemetry blocked: driverId missing from payload. User object:', user);
             return;
         }
         
-        console.log('[monitoring] Posting telemetry:', { driverId: payload.driverId, source: payload.source, status: payload.status });
+        // ⚠️ Guard: ensure only drivers send telemetry
+        const userRole = user?.role;
+        if (userRole && userRole !== 'driver') {
+            console.error('[monitoring] Telemetry blocked: user is not a driver. Role:', userRole, 'User:', user);
+            return;
+        }
+        
+        console.log('[monitoring] Posting telemetry:', { driverId: payload.driverId, source: payload.source, status: payload.status, userRole });
         
         const url = `${API_BASE_URL}/api/realtime/driver-monitoring`;
         console.log('[monitoring] Request URL:', url);
@@ -140,6 +148,8 @@ async function postTelemetry(payload) {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify(payload),
+            mode: 'cors',
+            credentials: 'include',
         });
 
         if (response.ok) {
@@ -147,6 +157,12 @@ async function postTelemetry(payload) {
         } else if (response.status === 400) {
             const errorData = await response.json();
             console.error('[monitoring] Backend rejected payload (400):', errorData);
+        } else if (response.status === 401) {
+            console.error('[monitoring] Unauthorized (401) - check authentication:', { url });
+        } else if (response.status === 403) {
+            console.error('[monitoring] Forbidden (403) - check permissions:', { url });
+        } else if (response.status === 404) {
+            console.error('[monitoring] Endpoint not found (404):', { url, statusText: response.statusText });
         } else {
             console.error('[monitoring] Backend error:', { status: response.status, statusText: response.statusText, url });
         }
@@ -156,7 +172,8 @@ async function postTelemetry(payload) {
             message: err.message,
             attemptedUrl: url,
             apiBaseUrl: API_BASE_URL,
-            errorType: err.name
+            errorType: err.name,
+            stack: err.stack
         });
     }
 }

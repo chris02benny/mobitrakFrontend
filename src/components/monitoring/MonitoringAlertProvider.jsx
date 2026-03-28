@@ -104,6 +104,10 @@ const MonitoringAlertProvider = ({ children }) => {
     const isFleetManager =
         user?.role === 'fleetmanager' ||
         localStorage.getItem('userRole') === 'fleetmanager';
+    
+    if (!isFleetManager) {
+        console.log('[MonitoringProvider] Skipping Pusher connection: user is not a fleet manager. Role:', user?.role);
+    }
 
     useEffect(() => {
         if (!isFleetManager) return;

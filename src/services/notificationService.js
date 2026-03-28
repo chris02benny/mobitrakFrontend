@@ -16,7 +16,13 @@ class NotificationService {
             });
             return response.data.data;
         } catch (error) {
-            console.error('Error fetching notifications:', error);
+            console.error('[notifications] Error fetching notifications:', {
+                message: error.message,
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                url: error.config?.url,
+                data: error.response?.data
+            });
             throw error;
         }
     }
@@ -34,7 +40,13 @@ class NotificationService {
             });
             return response.data.count;
         } catch (error) {
-            console.error('Error fetching unread count:', error);
+            console.error('[notifications] Error fetching unread count:', {
+                message: error.message,
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                url: error.config?.url,
+                data: error.response?.data
+            });
             return 0;
         }
     }
@@ -56,7 +68,11 @@ class NotificationService {
             );
             return response.data.data;
         } catch (error) {
-            console.error('Error marking notification as read:', error);
+            console.error('[notifications] Error marking as read:', {
+                message: error.message,
+                status: error.response?.status,
+                notificationId
+            });
             throw error;
         }
     }
@@ -78,7 +94,10 @@ class NotificationService {
             );
             return response.data;
         } catch (error) {
-            console.error('Error marking all as read:', error);
+            console.error('[notifications] Error marking all as read:', {
+                message: error.message,
+                status: error.response?.status
+            });
             throw error;
         }
     }
@@ -99,7 +118,11 @@ class NotificationService {
             );
             return response.data;
         } catch (error) {
-            console.error('Error deleting notification:', error);
+            console.error('[notifications] Error deleting notification:', {
+                message: error.message,
+                status: error.response?.status,
+                notificationId
+            });
             throw error;
         }
     }
