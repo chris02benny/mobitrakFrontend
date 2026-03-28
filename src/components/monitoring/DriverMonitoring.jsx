@@ -130,7 +130,10 @@ async function postTelemetry(payload) {
         
         console.log('[monitoring] Posting telemetry:', { driverId: payload.driverId, source: payload.source, status: payload.status });
         
-        const response = await fetch(`${API_BASE_URL}/api/realtime/driver-monitoring`, {
+        const url = `${API_BASE_URL}/api/realtime/driver-monitoring`;
+        console.log('[monitoring] Request URL:', url);
+        
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -145,10 +148,16 @@ async function postTelemetry(payload) {
             const errorData = await response.json();
             console.error('[monitoring] Backend rejected payload (400):', errorData);
         } else {
-            console.error('[monitoring] Backend error:', { status: response.status, statusText: response.statusText });
+            console.error('[monitoring] Backend error:', { status: response.status, statusText: response.statusText, url });
         }
     } catch (err) {
-        console.error('[monitoring] Failed to post telemetry:', err.message);
+        const url = `${API_BASE_URL}/api/realtime/driver-monitoring`;
+        console.error('[monitoring] Failed to post telemetry - check network and CORS:', {
+            message: err.message,
+            attemptedUrl: url,
+            apiBaseUrl: API_BASE_URL,
+            errorType: err.name
+        });
     }
 }
 
@@ -274,6 +283,7 @@ const DriverMonitoring = () => {
                 perclos: parseFloat(currentPerclos.toFixed(4)),
                 ear: parseFloat(meanEAR.toFixed(4)),
                 monitoringActive: true,
+                source: 'frame-analysis',
                 timestamp: new Date().toISOString(),
             });
 
