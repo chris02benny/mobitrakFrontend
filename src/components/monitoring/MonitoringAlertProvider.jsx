@@ -56,9 +56,12 @@ const getUserFromStorage = () => {
                 const payload = token.split('.')[1];
                 if (payload) {
                     const decoded = JSON.parse(atob(payload));
+                    // Try multiple possible field names for user ID
+                    const userIdField = decoded.userId || decoded.id || decoded.sub || decoded._id || Object.keys(decoded).find(k => k.toLowerCase().includes('user') || k.toLowerCase().includes('id'));
+                    
                     return {
-                        _id: decoded.userId || decoded.id || decoded.sub,
-                        id: decoded.userId || decoded.id || decoded.sub,
+                        _id: userIdField,
+                        id: userIdField,
                         role: decoded.role,
                         email: decoded.email
                     };

@@ -77,6 +77,7 @@ const getUser = () => {
         if (storedUser) {
             const user = JSON.parse(storedUser);
             if (user && (user._id || user.id)) {
+                console.log('[monitoring] Got user from localStorage:', user);
                 return user;
             }
         }
@@ -89,20 +90,25 @@ const getUser = () => {
                 const payload = token.split('.')[1];
                 if (payload) {
                     const decoded = JSON.parse(atob(payload));
-                    console.log('[monitoring] Extracted user from JWT:', { 
-                        userId: decoded.userId || decoded.id || decoded.sub,
-                        email: decoded.email,
-                        name: decoded.name
-                    });
+                    console.log('[monitoring] Full JWT payload:', decoded);
+                    
+                    // Try multiple possible field names for user ID
+                    const userIdField = decoded.userId || decoded.id || decoded.sub || decoded._id || Object.keys(decoded).find(k => k.toLowerCase().includes('user') || k.toLowerCase().includes('id'));
+                    
+                    if (!userIdField) {
+                        console.warn('[monitoring] JWT payload has no recognizable user ID field. Fields:', Object.keys(decoded));
+                    }
+                    
                     return {
-                        _id: decoded.userId || decoded.id || decoded.sub,
-                        id: decoded.userId || decoded.id || decoded.sub,
+                        _id: userIdField,
+                        id: userIdField,
                         email: decoded.email,
-                        name: decoded.name
+                        name: decoded.name,
+                        role: decoded.role
                     };
                 }
             } catch (decodeErr) {
-                console.warn('[monitoring] Failed to decode JWT:', decodeErr.message);
+                console.error('[monitoring] Failed to decode JWT:', decodeErr.message);
             }
         }
         
