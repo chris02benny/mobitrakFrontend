@@ -21,7 +21,6 @@ import DriversPage from './pages/business/DriversPage';
 import MaintenancePage from './pages/business/MaintenancePage';
 import ReportsPage from './pages/business/ReportsPage';
 import BusinessSettingsPage from './pages/business/SettingsPage';
-import LiveMonitoringPage from './pages/business/LiveMonitoringPage';
 
 // Driver Pages
 import DriverDashboard from './pages/driver/DriverDashboard';
@@ -29,7 +28,6 @@ import JobsPage from './pages/driver/JobsPage';
 import MyTripsPage from './pages/driver/MyTripsPage';
 import MyVehiclePage from './pages/driver/MyVehiclePage';
 import DriverSettingsPage from './pages/driver/SettingsPage';
-import DriverMonitoringPage from './pages/driver/DriverMonitoringPage';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -69,7 +67,6 @@ function App() {
             <Route path="/business/maintenance" element={<MaintenancePage />} />
             <Route path="/business/reports" element={<ReportsPage />} />
             <Route path="/business/settings" element={<BusinessSettingsPage />} />
-            <Route path="/business/monitoring" element={<LiveMonitoringPage />} />
 
             {/* Driver Routes */}
             <Route path="/driver/dashboard" element={<DriverDashboard />} />
@@ -77,7 +74,6 @@ function App() {
             <Route path="/driver/trips" element={<MyTripsPage />} />
             <Route path="/driver/vehicle" element={<MyVehiclePage />} />
             <Route path="/driver/settings" element={<DriverSettingsPage />} />
-            <Route path="/driver/monitoring" element={<DriverMonitoringPage />} />
           </Route>
 
           <Route path="/driver/complete-profile" element={<DriverProfileCompletion />} />

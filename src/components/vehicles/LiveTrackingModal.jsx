@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, RefreshCw, MapPin, Loader2 } from 'lucide-react';
 import LiveMap from './LiveMap';
 import axios from 'axios';
+import { apiConfig } from '../../config/apiConfig';
 
 const LiveTrackingModal = ({ isOpen, onClose, vehicle }) => {
   const [positions, setPositions] = useState([]);
@@ -30,7 +31,7 @@ const LiveTrackingModal = ({ isOpen, onClose, vehicle }) => {
       setFetchingCredentials(true);
       const token = localStorage.getItem('authToken');
       const response = await axios.get(
-        `http://localhost:5002/api/tracking-device/credentials/${vehicle._id}/decrypt`,
+        `${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials/${vehicle._id}/decrypt`,
         {
           headers: { 'x-auth-token': token }
         }

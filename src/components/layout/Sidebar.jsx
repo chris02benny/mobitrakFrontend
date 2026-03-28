@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Truck, Map, Users, Wrench, BarChart2, Settings, LogOut, User, Route, Car, Briefcase, Building2, ShieldCheck, UserPlus, Navigation, Eye } from 'lucide-react';
-import api from '../../services/api';
+import { LayoutDashboard, Truck, Map, Users, Wrench, BarChart2, Settings, LogOut, User, Route, Car, Briefcase, Building2, ShieldCheck, UserPlus, Navigation } from 'lucide-react';
+import axios from 'axios';
+import { apiConfig } from '../../config/apiConfig.js';
 
 const Sidebar = ({ onLogout }) => {
     const [userData, setUserData] = useState(null);
@@ -25,7 +26,10 @@ const Sidebar = ({ onLogout }) => {
 
     const fetchUserData = async () => {
         try {
-            const response = await api.get('/api/users/me');
+            const token = localStorage.getItem('authToken');
+            const response = await axios.get(`${apiConfig.getUserServiceUrl()}/me`, {
+                headers: { 'x-auth-token': token }
+            });
             setUserData(response.data.user);
         } catch (err) {
             console.error('Error fetching user data:', err);
@@ -51,7 +55,6 @@ const Sidebar = ({ onLogout }) => {
                 { id: 'trips', label: 'Trips', icon: <Navigation size={20} />, path: '/business/trips' },
                 { id: 'hire', label: 'Hire Drivers', icon: <UserPlus size={20} />, path: '/business/hire' },
                 { id: 'drivers', label: 'My Drivers', icon: <Users size={20} />, path: '/business/drivers' },
-                { id: 'monitoring', label: 'Live Monitoring', icon: <Eye size={20} />, path: '/business/monitoring' },
                 { id: 'maintenance', label: 'Maintenance', icon: <Wrench size={20} />, path: '/business/maintenance' },
                 { id: 'reports', label: 'Reports', icon: <BarChart2 size={20} />, path: '/business/reports' },
             ];
@@ -145,7 +148,7 @@ const Sidebar = ({ onLogout }) => {
                         )}
                         {/* Verified Badge for Business */}
                         {userData?.isVerifiedBusiness && (
-                            <div
+                            <div 
                                 className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5"
                                 title="Mobitrak Verified Business"
                             >

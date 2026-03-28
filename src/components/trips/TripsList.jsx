@@ -16,7 +16,7 @@ const TripsList = ({ trips, loading, onRefresh }) => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [tripToDelete, setTripToDelete] = useState(null);
 
-    // Fetch vehicle and driver details for all trips
+    // Fetch vehicle and driver details for all trips (batch optimization)
     useEffect(() => {
         const enrichTripsData = async () => {
             if (!trips || trips.length === 0) {
@@ -26,42 +26,40 @@ const TripsList = ({ trips, loading, onRefresh }) => {
 
             setEnriching(true);
             try {
-                const enrichedData = await Promise.all(
-                    trips.map(async (trip) => {
-                        const enrichedTrip = { ...trip };
+                // Extract all unique vehicle and driver IDs
+                const vehicleIds = trips
+                    .map(t => t.vehicleId)
+                    .filter(id => id && typeof id === 'string');
+                const driverIds = trips
+                    .map(t => t.driverId)
+                    .filter(id => id && typeof id === 'string');
 
-                        // Fetch vehicle details if vehicleId exists and is a string (ObjectId)
-                        if (trip.vehicleId && typeof trip.vehicleId === 'string') {
-                            try {
-                                const vehicleData = await vehicleService.getVehicleById(trip.vehicleId);
-                                enrichedTrip.vehicle = vehicleData;
-                            } catch (error) {
-                                console.error(`Failed to fetch vehicle ${trip.vehicleId}:`, error);
-                                enrichedTrip.vehicle = null;
-                            }
-                        } else if (trip.vehicleId && typeof trip.vehicleId === 'object') {
-                            // Already populated
-                            enrichedTrip.vehicle = trip.vehicleId;
-                        }
+                // Fetch all vehicles and drivers in parallel (not per-trip)
+                const [vehicleMap, driverMap] = await Promise.all([
+                    vehicleIds.length > 0 ? vehicleService.getVehiclesByIds(vehicleIds) : Promise.resolve({}),
+                    driverIds.length > 0 ? hiringService.getUsersByIds(driverIds) : Promise.resolve({})
+                ]);
 
-                        // Fetch driver details if driverId exists and is a string (ObjectId)
-                        if (trip.driverId && typeof trip.driverId === 'string') {
-                            try {
-                                const driverResponse = await hiringService.getUserById(trip.driverId);
-                                // Extract user object from response
-                                enrichedTrip.driver = driverResponse.user || driverResponse;
-                            } catch (error) {
-                                console.error(`Failed to fetch driver ${trip.driverId}:`, error);
-                                enrichedTrip.driver = null;
-                            }
-                        } else if (trip.driverId && typeof trip.driverId === 'object') {
-                            // Already populated
-                            enrichedTrip.driver = trip.driverId;
-                        }
+                // Enrich trips with fetched data
+                const enrichedData = trips.map(trip => {
+                    const enrichedTrip = { ...trip };
 
-                        return enrichedTrip;
-                    })
-                );
+                    // Use fetched or already-populated vehicle data
+                    if (trip.vehicleId && typeof trip.vehicleId === 'object') {
+                        enrichedTrip.vehicle = trip.vehicleId;
+                    } else if (trip.vehicleId) {
+                        enrichedTrip.vehicle = vehicleMap[trip.vehicleId] || null;
+                    }
+
+                    // Use fetched or already-populated driver data
+                    if (trip.driverId && typeof trip.driverId === 'object') {
+                        enrichedTrip.driver = trip.driverId;
+                    } else if (trip.driverId) {
+                        enrichedTrip.driver = driverMap[trip.driverId] || null;
+                    }
+
+                    return enrichedTrip;
+                });
 
                 setEnrichedTrips(enrichedData);
             } catch (error) {

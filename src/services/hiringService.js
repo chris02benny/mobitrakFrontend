@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:5003/api/drivers';
+import { apiConfig } from '../config/apiConfig.js';
+
+const API_BASE_URL = apiConfig.getDriverServiceUrl();
 
 /**
  * Helper to handle API responses
@@ -186,7 +188,7 @@ export const hiringService = {
     getUserById: async (userId) => {
         try {
             const token = localStorage.getItem('authToken');
-            const response = await fetch(`http://localhost:5001/api/users/${userId}`, {
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/${userId}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -280,6 +282,36 @@ export const hiringService = {
             return handleResponse(response);
         } catch (error) {
             console.error('Error fetching available drivers:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Batch fetch users by IDs
+     * Optimized to reduce N+1 queries
+     */
+    getUsersByIds: async (userIds) => {
+        if (!userIds || userIds.length === 0) return {};
+
+        try {
+            const uniqueIds = [...new Set(userIds.filter(Boolean))];
+            
+            // Fetch all users in parallel
+            const users = await Promise.all(
+                uniqueIds.map(id => hiringService.getUserById(id).catch(() => null))
+            );
+
+            // Create a map for easy lookup
+            const userMap = {};
+            users.forEach((user, index) => {
+                if (user) {
+                    userMap[uniqueIds[index]] = user;
+                }
+            });
+
+            return userMap;
+        } catch (error) {
+            console.error('Error fetching users batch:', error);
             throw error;
         }
     }

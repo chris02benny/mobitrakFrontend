@@ -1,11 +1,17 @@
-import api from './api';
+import { apiConfig } from '../config/apiConfig.js';
 
 /**
- * authService.js
- * All user authentication API calls.
- * Uses the centralized `api` client — base URL comes from VITE_API_URL.
- * JWT is attached automatically by the api.js request interceptor.
+ * Helper to handle API responses
  */
+const handleResponse = async (response) => {
+    const data = await response.json();
+    if (!response.ok) {
+        const error = new Error(data.message || 'Something went wrong');
+        error.status = response.status;
+        throw error;
+    }
+    return data;
+};
 
 export const authService = {
     /**
@@ -13,128 +19,292 @@ export const authService = {
      * @param {Object} userData - { companyName, email, password }
      */
     registerFleetManager: async (userData) => {
-        const response = await api.post('/api/users/register/fleetmanager', userData);
-        return response.data;
+        try {
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/register/fleetmanager`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(userData),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
+
+
 
     /**
      * Register a new driver
      * @param {Object} userData - { firstName, lastName, driverLicenseId, email, password }
      */
     registerDriver: async (userData) => {
-        const response = await api.post('/api/users/register/driver', userData);
-        return response.data;
+        try {
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/register/driver`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(userData),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
-    login: async (credentials) => {
-        const response = await api.post('/api/users/login', credentials);
-        const data = response.data;
-        if (data.token) {
-            localStorage.setItem('authToken', data.token);
-            // Fix: role is nested inside the user object
-            const role = data.user?.role || data.role;
-            if (role) localStorage.setItem('userRole', role);
 
-            // Fix: hasPassword is also nested
-            const hasPassword = data.user?.hasPassword !== undefined ? data.user.hasPassword : !!data.user?.password;
-            localStorage.setItem('userHasPassword', hasPassword ? 'true' : 'false');
+    login: async (credentials) => {
+        try {
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(credentials),
+            });
+            const data = await handleResponse(response);
+            // Store token and role for later use (simple localStorage implementation)
+            if (data.token) {
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('userRole', data.role);
+                localStorage.setItem('userHasPassword', data.user?.hasPassword ? 'true' : 'false');
+            }
+            return data;
+        } catch (error) {
+            throw error;
         }
-        return data;
     },
 
     verifyOtp: async (email, otp) => {
-        const response = await api.post('/api/users/verify-otp', { email, otp });
-        const data = response.data;
-        if (data.token) {
-            localStorage.setItem('authToken', data.token);
-            const role = data.user?.role || data.role;
-            if (role) localStorage.setItem('userRole', role);
-
-            const hasPassword = data.user?.hasPassword !== undefined ? data.user.hasPassword : !!data.user?.password;
-            localStorage.setItem('userHasPassword', hasPassword ? 'true' : 'false');
+        try {
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/verify-otp`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, otp }),
+            });
+            const data = await handleResponse(response);
+            if (data.token) {
+                localStorage.setItem('authToken', data.token);
+                if (data.user?.role) {
+                    localStorage.setItem('userRole', data.user.role);
+                }
+                localStorage.setItem('userHasPassword', data.user?.hasPassword ? 'true' : 'false');
+            }
+            return data;
+        } catch (error) {
+            throw error;
         }
-        return data;
     },
 
     updatePassword: async (password) => {
-        const response = await api.post('/api/users/update-password', { password });
-        return response.data;
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/update-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                },
+                body: JSON.stringify({ password }),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     completeProfile: async (data) => {
-        const response = await api.post('/api/users/complete-profile', data);
-        return response.data;
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/complete-profile`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                },
+                body: JSON.stringify(data),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     getProfile: async () => {
-        const response = await api.get('/api/users/me');
-        return response.data;
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found. Please login.');
+            }
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/me`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                },
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     /**
      * Upload profile image
-     * @param {File} imageFile
+     * @param {File} imageFile - Profile image file
      */
     uploadProfileImage: async (imageFile) => {
-        const formData = new FormData();
-        formData.append('profileImage', imageFile);
-        const response = await api.post('/api/users/profile/image', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        return response.data;
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found. Please login.');
+            }
+
+            const formData = new FormData();
+            formData.append('profileImage', imageFile);
+
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/profile/image`, {
+                method: 'POST',
+                headers: {
+                    'x-auth-token': token
+                },
+                body: formData,
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     /**
      * Upload driving license images
-     * @param {File} dlFront
-     * @param {File} dlBack
+     * @param {File} dlFront - Front image of DL
+     * @param {File} dlBack - Back image of DL
      */
     uploadDL: async (dlFront, dlBack) => {
-        const formData = new FormData();
-        formData.append('dlFront', dlFront);
-        formData.append('dlBack', dlBack);
-        const response = await api.post('/api/users/upload-dl', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        return response.data;
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found. Please login.');
+            }
+
+            const formData = new FormData();
+            formData.append('dlFront', dlFront);
+            formData.append('dlBack', dlBack);
+
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/upload-dl`, {
+                method: 'POST',
+                headers: {
+                    'x-auth-token': token
+                },
+                body: formData,
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     /**
      * Verify and save DL details after user confirmation
-     * @param {Object} dlDetails
+     * @param {Object} dlDetails - Verified DL details object
      */
     verifyDL: async (dlDetails) => {
-        const response = await api.post('/api/users/verify-dl', { dlDetails });
-        return response.data;
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found. Please login.');
+            }
+
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/verify-dl`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                },
+                body: JSON.stringify({ dlDetails }),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     /**
      * Upload RC book image
-     * @param {File} rcBook
+     * @param {File} rcBook - RC Book image
      */
     uploadRC: async (rcBook) => {
-        const formData = new FormData();
-        formData.append('rcBook', rcBook);
-        const response = await api.post('/api/users/upload-rc', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        return response.data;
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found. Please login.');
+            }
+
+            const formData = new FormData();
+            formData.append('rcBook', rcBook);
+
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/upload-rc`, {
+                method: 'POST',
+                headers: {
+                    'x-auth-token': token
+                },
+                body: formData,
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     /**
      * Request business verification (Fleet Manager only)
      */
     requestVerification: async () => {
-        const response = await api.post('/api/users/request-verification');
-        return response.data;
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found. Please login.');
+            }
+
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/request-verification`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                }
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     /**
      * Get verification status (Fleet Manager only)
      */
     getVerificationStatus: async () => {
-        const response = await api.get('/api/users/verification-status');
-        return response.data;
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found. Please login.');
+            }
+
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/verification-status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                }
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     /**
@@ -148,31 +318,61 @@ export const authService = {
 
     /**
      * Send OTP for password reset
-     * @param {string} email
+     * @param {string} email - User's email address
      */
     forgotPassword: async (email) => {
-        const response = await api.post('/api/users/forgot-password', { email });
-        return response.data;
+        try {
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/forgot-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     /**
      * Verify OTP for password reset
-     * @param {string} email
-     * @param {string} otp
+     * @param {string} email - User's email address
+     * @param {string} otp - The OTP code
      */
     verifyResetOtp: async (email, otp) => {
-        const response = await api.post('/api/users/verify-reset-otp', { email, otp });
-        return response.data;
+        try {
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/verify-reset-otp`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, otp }),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
     },
 
     /**
      * Reset password after OTP verification
-     * @param {string} email
-     * @param {string} otp
-     * @param {string} newPassword
+     * @param {string} email - User's email address
+     * @param {string} otp - The verified OTP code
+     * @param {string} newPassword - The new password
      */
     resetPassword: async (email, otp, newPassword) => {
-        const response = await api.post('/api/users/reset-password', { email, otp, newPassword });
-        return response.data;
-    },
+        try {
+            const response = await fetch(`${apiConfig.getUserServiceUrl()}/reset-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, otp, newPassword }),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            throw error;
+        }
+    }
 };

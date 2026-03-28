@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Mail, Lock, CheckCircle } from 'lucide-react';
 import Button from '../common/Button';
 import AuthInput from './AuthInput';
+import { authService } from '../../services/authService';
 
 const ForgotPasswordModal = ({ isOpen, onClose, onSuccess }) => {
     const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
@@ -32,20 +33,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
 
         try {
-            const BASE_URL = import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
-            const response = await fetch(`${BASE_URL}/api/users/forgot-password`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to send OTP');
-            }
+            const response = await authService.forgotPassword(email);
 
             setSuccess('OTP sent to your email. Please check your inbox.');
             setStep(2);
@@ -62,20 +50,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
 
         try {
-            const BASE_URL = import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
-            const response = await fetch(`${BASE_URL}/api/users/verify-reset-otp`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, otp }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Invalid OTP');
-            }
+            const response = await authService.verifyResetOtp(email, otp);
 
             setSuccess('OTP verified! Now set your new password.');
             setStep(3);
@@ -103,21 +78,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
 
         try {
-            const BASE_URL = import.meta.env.VITE_API_URL || 'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
-            const response = await fetch(`${BASE_URL}/api/users/reset-password`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, otp, newPassword }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to reset password');
-            }
-
+            await authService.resetPassword(email, otp, newPassword);
             setSuccess('Password reset successfully! Redirecting to login...');
             setTimeout(() => {
                 handleClose();

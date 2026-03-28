@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MapPin, Save, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { apiConfig } from '../../config/apiConfig';
 
 const LiveTrackingPage = () => {
     const [deviceCredentials, setDeviceCredentials] = useState({
@@ -21,7 +22,7 @@ const LiveTrackingPage = () => {
     const fetchExistingCredentials = async () => {
         try {
             const token = localStorage.getItem('authToken');
-            const response = await axios.get('http://localhost:5002/api/tracking-device/credentials', {
+            const response = await axios.get(`${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials`, {
                 headers: { 'x-auth-token': token }
             });
 
@@ -71,7 +72,7 @@ const LiveTrackingPage = () => {
         try {
             const token = localStorage.getItem('authToken');
             const response = await axios.post(
-                'http://localhost:5002/api/tracking-device/credentials',
+                `${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials`,
                 deviceCredentials,
                 {
                     headers: { 'x-auth-token': token }
