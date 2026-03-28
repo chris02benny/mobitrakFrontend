@@ -82,33 +82,30 @@ const getUser = () => {
             }
         }
         
-        // Fallback: Extract from JWT token if localStorage.user is empty or missing ID
+        // Fallback: Extract from JWT token
         const token = localStorage.getItem('authToken');
         if (token) {
             try {
-                // JWT format: header.payload.signature
-                const payload = token.split('.')[1];
-                if (payload) {
-                    const decoded = JSON.parse(atob(payload));
-                    console.log('[monitoring] Full JWT payload:', decoded);
-                    
-                    // Try multiple possible field names for user ID
-                    const userIdField = decoded.userId || decoded.id || decoded.sub || decoded._id || Object.keys(decoded).find(k => k.toLowerCase().includes('user') || k.toLowerCase().includes('id'));
-                    
-                    if (!userIdField) {
-                        console.warn('[monitoring] JWT payload has no recognizable user ID field. Fields:', Object.keys(decoded));
-                    }
+                const decoded = JSON.parse(atob(token.split('.')[1]));
+                console.log('[monitoring] Full JWT payload:', decoded);
+                
+                // JWT structure: {user: {...}, iat, exp}
+                // The actual user object is NESTED under the 'user' key
+                if (decoded.user && typeof decoded.user === 'object') {
+                    const userObj = decoded.user;
+                    console.log('[monitoring] Extracted user from JWT.user:', userObj);
+                    const userId = userObj._id || userObj.id || userObj.userId || userObj.sub;
                     
                     return {
-                        _id: userIdField,
-                        id: userIdField,
-                        email: decoded.email,
-                        name: decoded.name,
-                        role: decoded.role
+                        _id: userId,
+                        id: userId,
+                        email: userObj.email,
+                        name: userObj.name,
+                        role: userObj.role
                     };
                 }
-            } catch (decodeErr) {
-                console.error('[monitoring] Failed to decode JWT:', decodeErr.message);
+            } catch (err) {
+                console.error('[monitoring] Failed to extract user from JWT:', err.message);
             }
         }
         

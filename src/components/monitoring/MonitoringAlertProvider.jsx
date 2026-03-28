@@ -56,15 +56,22 @@ const getUserFromStorage = () => {
                 const payload = token.split('.')[1];
                 if (payload) {
                     const decoded = JSON.parse(atob(payload));
-                    // Try multiple possible field names for user ID
-                    const userIdField = decoded.userId || decoded.id || decoded.sub || decoded._id || Object.keys(decoded).find(k => k.toLowerCase().includes('user') || k.toLowerCase().includes('id'));
+                    console.log('[monitoring] Full JWT payload (MonitoringProvider):', decoded);
                     
-                    return {
-                        _id: userIdField,
-                        id: userIdField,
-                        role: decoded.role,
-                        email: decoded.email
-                    };
+                    // JWT structure: {user: {...}, iat, exp}
+                    // The actual user object is NESTED under the 'user' key
+                    if (decoded.user && typeof decoded.user === 'object') {
+                        const userObj = decoded.user;
+                        console.log('[monitoring] Extracted user from JWT.user:', userObj);
+                        const userId = userObj._id || userObj.id || userObj.userId || userObj.sub;
+                        
+                        return {
+                            _id: userId,
+                            id: userId,
+                            role: userObj.role,
+                            email: userObj.email
+                        };
+                    }
                 }
             } catch (_) {
                 return {};
