@@ -102,12 +102,21 @@ const MonitoringAlertProvider = ({ children }) => {
         globalChannel.bind('admin_monitoring', handleMonitoringData);
 
         return () => {
-            globalChannel.unbind_all();
-            pusherClient.unsubscribe('global-monitoring');
-            if (managerId) {
-                pusherClient.unsubscribe(`fleet-${managerId}`);
+            try {
+                if (channelRef.current) {
+                    channelRef.current.unbind_all();
+                }
+                pusherClient.unsubscribe('global-monitoring');
+                if (managerId) {
+                    pusherClient.unsubscribe(`fleet-${managerId}`);
+                }
+                // Only disconnect if connection is not already closed
+                if (pusherClient.connection && pusherClient.connection.state !== 'closed') {
+                    pusherClient.disconnect();
+                }
+            } catch (err) {
+                console.warn('[MonitoringProvider] Cleanup error (expected if already disconnected):', err.message);
             }
-            pusherClient.disconnect();
             pusherRef.current = null;
             channelRef.current = null;
         };

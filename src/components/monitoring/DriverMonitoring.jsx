@@ -25,13 +25,11 @@ import {
     PERCLOS_THRESHOLD,
 } from '../../utils/drowsinessUtils';
 import { useDrowsinessAlert } from '../../hooks/useDrowsinessAlert';
+import { apiConfig } from '../../config/apiConfig';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const API_BASE_URL =
-    import.meta.env.VITE_TRIP_SERVICE_URL ||
-    import.meta.env.VITE_API_URL ||
-    'https://g5ly7nfs0m.execute-api.ap-south-1.amazonaws.com';
+const API_BASE_URL = apiConfig.baseUrl;
 
 const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY || '3c443eb0dc81a17f2142';
 const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';

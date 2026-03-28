@@ -14,6 +14,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 // Business (Fleet Manager) Pages
 import BusinessDashboard from './pages/business/BusinessDashboard';
 import LiveFleetMapPage from './pages/business/LiveFleetMapPage';
+import LiveMonitoringPage from './pages/business/LiveMonitoringPage';
 import VehicleListPage from './pages/business/VehicleListPage';
 import TripsPage from './pages/business/TripsPage';
 import HireDriversPage from './pages/business/HireDriversPage';
@@ -28,6 +29,7 @@ import JobsPage from './pages/driver/JobsPage';
 import MyTripsPage from './pages/driver/MyTripsPage';
 import MyVehiclePage from './pages/driver/MyVehiclePage';
 import DriverSettingsPage from './pages/driver/SettingsPage';
+import DriverMonitoringPage from './pages/driver/DriverMonitoringPage';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -60,6 +62,7 @@ function App() {
             {/* Business (Fleet Manager) Routes */}
             <Route path="/business/dashboard" element={<BusinessDashboard />} />
             <Route path="/business/map" element={<LiveFleetMapPage />} />
+            <Route path="/business/monitoring" element={<LiveMonitoringPage />} />
             <Route path="/business/vehicles" element={<VehicleListPage />} />
             <Route path="/business/trips" element={<TripsPage />} />
             <Route path="/business/hire" element={<HireDriversPage />} />
@@ -70,6 +73,7 @@ function App() {
 
             {/* Driver Routes */}
             <Route path="/driver/dashboard" element={<DriverDashboard />} />
+            <Route path="/driver/monitoring" element={<DriverMonitoringPage />} />
             <Route path="/driver/jobs" element={<JobsPage />} />
             <Route path="/driver/trips" element={<MyTripsPage />} />
             <Route path="/driver/vehicle" element={<MyVehiclePage />} />
