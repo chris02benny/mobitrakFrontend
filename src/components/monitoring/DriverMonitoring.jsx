@@ -68,8 +68,11 @@ const MEDIAPIPE_CAMERA_CDN =
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Resolve fleetManagerId from stored user, JWT, or hiring/employment API.
+ * Resolve fleetManagerId from employment API.
  * Cache result so repeated calls don't re-fetch.
+ * 
+ * Endpoint: GET /api/drivers/employments/current
+ * Returns: { success: true, data: { _id, driverId, companyId, status, ... } }
  */
 let cachedFleetManagerId = null;
 
@@ -81,53 +84,46 @@ async function resolveFleetManagerId(userId) {
     }
 
     try {
-        console.log('[monitoring] Resolving fleetManagerId from API...');
+        console.log('[monitoring] Resolving fleetManagerId from employment API...');
         
-        // Try hiringService first (injected by app)
-        if (typeof window !== 'undefined' && window.__hiringService) {
-            try {
-                const employment = await window.__hiringService.getCurrentEmployment();
-                if (employment?.data?.companyId) {
-                    cachedFleetManagerId = employment.data.companyId;
-                    console.log('[monitoring] ✅ Resolved fleetManagerId from hiringService:', cachedFleetManagerId);
-                    return cachedFleetManagerId;
-                }
-            } catch (hiringErr) {
-                console.warn('[monitoring] hiringService failed:', hiringErr.message);
-            }
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            console.warn('[monitoring] No auth token found');
+            return null;
         }
 
-        // Fallback: call hiring API directly
-        const token = localStorage.getItem('authToken');
-        if (token && userId) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/hiring/current-employment`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`,
-                    },
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data?.data?.companyId) {
-                        cachedFleetManagerId = data.data.companyId;
-                        console.log('[monitoring] ✅ Resolved fleetManagerId from employment API:', cachedFleetManagerId);
-                        return cachedFleetManagerId;
-                    }
-                } else {
-                    console.warn('[monitoring] Employment API returned', response.status);
-                }
-            } catch (apiErr) {
-                console.error('[monitoring] Employment API call failed:', apiErr.message);
-            }
+        // Call the correct endpoint: GET /api/drivers/employments/current
+        const response = await fetch(`${API_BASE_URL}/api/drivers/employments/current`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+        
+        if (!response.ok) {
+            console.warn('[monitoring] Employment API returned', response.status);
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        // Response format: { success: true, data: { companyId, status, ... } }
+        if (data?.success && data?.data?.companyId) {
+            cachedFleetManagerId = data.data.companyId;
+            console.log('[monitoring] ✅ Resolved fleetManagerId from employment API:', cachedFleetManagerId);
+            return cachedFleetManagerId;
+        } else if (data?.data === null) {
+            console.warn('[monitoring] No active employment found (data is null)');
+            return null;
+        } else {
+            console.warn('[monitoring] Employment API response missing companyId:', data);
+            return null;
         }
     } catch (err) {
         console.error('[monitoring] Failed to resolve fleetManagerId:', err.message);
+        return null;
     }
-
-    return null;
 }
 
 const getUser = () => {
