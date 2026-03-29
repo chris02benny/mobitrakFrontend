@@ -60,10 +60,13 @@ const MonitoringAlertProvider = ({ children }) => {
         localStorage.getItem('userRole') === 'fleetmanager';
 
     // ── Fetch alerts from API (polling) ────────────────────────────────────────
-    const fetchAlerts = async (fleetManagerId) => {
+    // Fleet manager polls using their own user ID as companyId — this matches
+    // the companyId stored in the employments collection, so only alerts from
+    // hired drivers are returned.
+    const fetchAlerts = async (companyId) => {
         try {
             const params = new URLSearchParams({
-                fleetManagerId,
+                companyId,
                 limit: '50'
             });
 
@@ -90,11 +93,10 @@ const MonitoringAlertProvider = ({ children }) => {
             }
 
             if (alerts.length === 0) {
-                console.log('[MonitoringProvider] No new alerts');
-                return;
+                return; // No new alerts — silent
             }
 
-            console.log('[MonitoringProvider] Fetched', alerts.length, 'alerts');
+            console.log('[MonitoringProvider] Fetched', alerts.length, 'new alerts');
 
             // Update cursor to latest timestamp for next poll
             if (alerts.length > 0) {
@@ -116,21 +118,22 @@ const MonitoringAlertProvider = ({ children }) => {
         if (!isFleetManager) return;
 
         const u = getUserFromStorage();
-        const managerId = u?.id || u?._id;
+        // The fleet manager's user _id IS the companyId in the employment records
+        const companyId = u?.id || u?._id;
 
-        if (!managerId) {
-            console.warn('[MonitoringProvider] No managerId found');
+        if (!companyId) {
+            console.warn('[MonitoringProvider] No companyId found for fleet manager');
             return;
         }
 
-        console.log('[MonitoringProvider] Starting polling for', managerId);
+        console.log('[MonitoringProvider] Starting alert polling for companyId:', companyId);
 
         // Initial fetch
-        fetchAlerts(managerId);
+        fetchAlerts(companyId);
 
         // Poll every 3 seconds
         pollIntervalRef.current = setInterval(() => {
-            fetchAlerts(managerId);
+            fetchAlerts(companyId);
         }, 3000);
 
         return () => {

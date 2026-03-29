@@ -68,23 +68,24 @@ const MEDIAPIPE_CAMERA_CDN =
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Resolve fleetManagerId from employment API.
+ * Resolve companyId (fleet manager) from the employment API.
  * Cache result so repeated calls don't re-fetch.
  * 
  * Endpoint: GET /api/drivers/employments/current
  * Returns: { success: true, data: { _id, driverId, companyId, status, ... } }
+ * The companyId in the employment record IS the hiring fleet manager's ID.
  */
-let cachedFleetManagerId = null;
+let cachedCompanyId = null;
 
-async function resolveFleetManagerId(userId) {
+async function resolveCompanyId(userId) {
     // Return cached value if already resolved
-    if (cachedFleetManagerId) {
-        console.log('[monitoring] Using cached fleetManagerId:', cachedFleetManagerId);
-        return cachedFleetManagerId;
+    if (cachedCompanyId) {
+        console.log('[monitoring] Using cached companyId:', cachedCompanyId);
+        return cachedCompanyId;
     }
 
     try {
-        console.log('[monitoring] Resolving fleetManagerId from employment API...');
+        console.log('[monitoring] Resolving companyId from employment API...');
         
         const token = localStorage.getItem('authToken');
         if (!token) {
@@ -110,9 +111,9 @@ async function resolveFleetManagerId(userId) {
         
         // Response format: { success: true, data: { companyId, status, ... } }
         if (data?.success && data?.data?.companyId) {
-            cachedFleetManagerId = data.data.companyId;
-            console.log('[monitoring] ✅ Resolved fleetManagerId from employment API:', cachedFleetManagerId);
-            return cachedFleetManagerId;
+            cachedCompanyId = data.data.companyId;
+            console.log('[monitoring] ✅ Resolved companyId from employment API:', cachedCompanyId);
+            return cachedCompanyId;
         } else if (data?.data === null) {
             console.warn('[monitoring] No active employment found (data is null)');
             return null;
@@ -121,7 +122,7 @@ async function resolveFleetManagerId(userId) {
             return null;
         }
     } catch (err) {
-        console.error('[monitoring] Failed to resolve fleetManagerId:', err.message);
+        console.error('[monitoring] Failed to resolve companyId:', err.message);
         return null;
     }
 }
@@ -158,7 +159,7 @@ const getUser = () => {
                         email: userObj.email,
                         name: userObj.name,
                         role: userObj.role,
-                        fleetManagerId: userObj.fleetManagerId || null
+                        companyId: userObj.companyId || null
                     };
                 }
             } catch (err) {
@@ -193,26 +194,26 @@ async function postTelemetry(payload) {
             return;
         }
 
-        // RESOLVE fleetManagerId if missing
-        let fleetManagerId = payload.fleetManagerId;
-        if (!fleetManagerId) {
-            console.log('[monitoring] ⏳ fleetManagerId missing, resolving from API...');
-            fleetManagerId = await resolveFleetManagerId(payload.driverId);
+        // RESOLVE companyId if missing
+        let companyId = payload.companyId;
+        if (!companyId) {
+            console.log('[monitoring] ⏳ companyId missing, resolving from employment API...');
+            companyId = await resolveCompanyId(payload.driverId);
             
-            if (!fleetManagerId) {
-                console.error('[monitoring] ❌ Telemetry blocked: could not resolve fleetManagerId', payload);
+            if (!companyId) {
+                console.error('[monitoring] ❌ Telemetry blocked: could not resolve companyId', payload);
                 return;
             }
             
-            // Update payload with resolved fleetManagerId
-            payload.fleetManagerId = fleetManagerId;
-            console.log('[monitoring] ✅ fleetManagerId resolved:', fleetManagerId);
+            // Update payload with resolved companyId
+            payload.companyId = companyId;
+            console.log('[monitoring] ✅ companyId resolved:', companyId);
         }
         
         // 🚀 LOG AS REQUESTED: Sending telemetry with full payload details
         console.log('🚀 Sending telemetry:', {
             driverId: payload.driverId,
-            fleetManagerId: payload.fleetManagerId,
+            companyId: payload.companyId,
             status: payload.status,
             monitoringActive: payload.monitoringActive,
             source: payload.source,
@@ -379,7 +380,7 @@ const DriverMonitoring = () => {
             // POST to backend → MongoDB stores alert (async, fire-and-forget)
             postTelemetry({
                 driverId: user._id || user.id,
-                fleetManagerId: user.fleetManagerId,
+                companyId: user.companyId,
                 status: currentStatus,
                 perclos: parseFloat(currentPerclos.toFixed(4)),
                 ear: parseFloat(meanEAR.toFixed(4)),
@@ -407,7 +408,7 @@ const DriverMonitoring = () => {
             // Emit session-start event to notify fleet manager
             await postTelemetry({
                 driverId: user._id || user.id,
-                fleetManagerId: user.fleetManagerId,
+                companyId: user.companyId,
                 monitoringActive: true,
                 status: 'ALERT',
                 perclos: 0,
@@ -493,7 +494,7 @@ const DriverMonitoring = () => {
         // Emit session-stop event before closing streams
         await postTelemetry({
             driverId: user._id || user.id,
-            fleetManagerId: user.fleetManagerId,
+            companyId: user.companyId,
             monitoringActive: false,
             status: 'INACTIVE',
             perclos: 0,
