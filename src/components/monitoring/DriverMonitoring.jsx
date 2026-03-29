@@ -6,7 +6,7 @@
  *  - Camera access via getUserMedia
  *  - MediaPipe FaceMesh (loaded from CDN) for facial landmark detection
  *  - EAR + PERCLOS computation using drowsinessUtils
- *  - Pusher-based real-time events via REST API POST to /api/realtime/driver-monitoring
+ *  - MongoDB-backed alerts via REST API POST to /api/realtime/driver-monitoring
  *  - Throttled frame processing (~10 fps)
  */
 
@@ -30,9 +30,6 @@ import { apiConfig } from '../../config/apiConfig';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const API_BASE_URL = apiConfig.baseUrl;
-
-const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY || '3c443eb0dc81a17f2142';
-const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
 
 /** Target detection rate (ms between processed frames) */
 const FRAME_INTERVAL_MS = 100; // ~10 fps
@@ -147,7 +144,7 @@ const getUser = () => {
     }
 };
 
-// Post telemetry to backend which then triggers Pusher
+// Post telemetry to backend which stores to MongoDB
 async function postTelemetry(payload) {
     try {
         const token = localStorage.getItem('authToken');
@@ -333,7 +330,7 @@ const DriverMonitoring = () => {
         if (statusChanged || intervalElapsed) {
             const user = getUser();
 
-            // POST to backend → Pusher triggers fleet managers
+            // POST to backend → MongoDB stores alert
             postTelemetry({
                 driverId: user._id || user.id,
                 fleetManagerId: user.fleetManagerId,

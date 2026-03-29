@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, MapPin, ArrowRight, Truck, User, Navigation, Building2, Menu, Search, X } from 'lucide-react';
-import Pusher from 'pusher-js';
 import MapView from '../common/MapView';
 import { authService } from '../../services/authService';
 import { vehicleService } from '../../services/vehicleService';
@@ -28,42 +27,9 @@ const LiveFleetMap = ({ isFullPage = false }) => {
     const [socket, setSocket] = useState(null);
     const [userSocket, setUserSocket] = useState(null);
 
-    // Initialize Pusher connection for real-time location + office updates
-    useEffect(() => {
-        const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY || '3c443eb0dc81a17f2142';
-        const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
+    // Pusher connection removed - location updates handled via API
 
-        const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
-
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const userId = user?.id || user?._id;
-
-        // Subscribe to global monitoring channel
-        const globalChannel = pusher.subscribe('global-monitoring');
-        globalChannel.bind('location-update', (locationData) => {
-            console.log('Location update received via Pusher:', locationData);
-            handleLocationUpdate(locationData);
-        });
-        globalChannel.bind('office-location-update', (data) => {
-            handleOfficeLocationUpdate(data);
-        });
-
-        // Also subscribe to this fleet manager's specific channel
-        if (userId) {
-            const fleetChannel = pusher.subscribe(`fleet-${userId}`);
-            fleetChannel.bind('location-update', (locationData) => {
-                handleLocationUpdate(locationData);
-            });
-        }
-
-        return () => {
-            pusher.unsubscribe('global-monitoring');
-            if (userId) pusher.unsubscribe(`fleet-${userId}`);
-            pusher.disconnect();
-        };
-    }, []);
-
-    // Handle real-time location updates
+    // Handle real-time location updates (legacy - may be deprecated)
     const handleLocationUpdate = (locationData) => {
         const { vehicleId, location, tripId } = locationData;
 

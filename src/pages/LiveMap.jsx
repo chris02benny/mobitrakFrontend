@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, MapPin, Building2, Truck, User, Filter, Navigation, Gauge } from 'lucide-react';
-import Pusher from 'pusher-js';
 import MapView from '../components/common/MapView';
 import LocationDetailModal from '../components/common/LocationDetailModal';
 import { authService } from '../services/authService';
@@ -29,47 +28,9 @@ const LiveMap = () => {
     const [traccarInterval, setTraccarInterval] = useState(null);
     const [mapUpdateKey, setMapUpdateKey] = useState(0);
 
-    // Initialize Pusher connection for realtime updates (Pusher-only approach)
-    useEffect(() => {
-        const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY || '3c443eb0dc81a17f2142';
-        const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
+    // Pusher connection removed - location updates now handled via API calls
 
-        const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
-
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const userId = user?.id || user?._id;
-
-        // Subscribe to global monitoring channel for location updates
-        const globalChannel = pusher.subscribe('global-monitoring');
-        globalChannel.bind('location-update', (locationData) => {
-            console.log('Location update received via Pusher:', locationData);
-            handleLocationUpdate(locationData);
-        });
-        globalChannel.bind('office-location-update', (data) => {
-            console.log('Office location update received:', data);
-            handleOfficeLocationUpdate(data);
-        });
-
-        // Subscribe to fleet-specific channel if user ID available
-        if (userId) {
-            const fleetChannel = pusher.subscribe(`fleet-${userId}`);
-            fleetChannel.bind('location-update', (locationData) => {
-                handleLocationUpdate(locationData);
-            });
-            fleetChannel.bind('office-location-update', (data) => {
-                handleOfficeLocationUpdate(data);
-            });
-        }
-
-        return () => {
-            globalChannel.unbind_all();
-            pusher.unsubscribe('global-monitoring');
-            if (userId) pusher.unsubscribe(`fleet-${userId}`);
-            pusher.disconnect();
-        };
-    }, []);
-
-    // Handle real-time location updates
+    // Handle real-time location updates (legacy - may be deprecated)
     const handleLocationUpdate = (locationData) => {
         const { vehicleId, location, tripId } = locationData;
         
