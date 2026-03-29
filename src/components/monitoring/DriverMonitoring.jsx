@@ -68,7 +68,7 @@ const MEDIAPIPE_CAMERA_CDN =
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Resolve fleetManagerId from stored user, JWT, or fallback employment API.
+ * Resolve fleetManagerId from stored user, JWT, or hiring/employment API.
  * Cache result so repeated calls don't re-fetch.
  */
 let cachedFleetManagerId = null;
@@ -76,21 +76,55 @@ let cachedFleetManagerId = null;
 async function resolveFleetManagerId(userId) {
     // Return cached value if already resolved
     if (cachedFleetManagerId) {
+        console.log('[monitoring] Using cached fleetManagerId:', cachedFleetManagerId);
         return cachedFleetManagerId;
     }
 
     try {
-        // Try to get from hiringService if available
+        console.log('[monitoring] Resolving fleetManagerId from API...');
+        
+        // Try hiringService first (injected by app)
         if (typeof window !== 'undefined' && window.__hiringService) {
-            const employment = await window.__hiringService.getCurrentEmployment();
-            if (employment?.data?.companyId) {
-                cachedFleetManagerId = employment.data.companyId;
-                console.log('[monitoring] Resolved fleetManagerId from employment API:', cachedFleetManagerId);
-                return cachedFleetManagerId;
+            try {
+                const employment = await window.__hiringService.getCurrentEmployment();
+                if (employment?.data?.companyId) {
+                    cachedFleetManagerId = employment.data.companyId;
+                    console.log('[monitoring] ✅ Resolved fleetManagerId from hiringService:', cachedFleetManagerId);
+                    return cachedFleetManagerId;
+                }
+            } catch (hiringErr) {
+                console.warn('[monitoring] hiringService failed:', hiringErr.message);
+            }
+        }
+
+        // Fallback: call hiring API directly
+        const token = localStorage.getItem('authToken');
+        if (token && userId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/hiring/current-employment`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data?.data?.companyId) {
+                        cachedFleetManagerId = data.data.companyId;
+                        console.log('[monitoring] ✅ Resolved fleetManagerId from employment API:', cachedFleetManagerId);
+                        return cachedFleetManagerId;
+                    }
+                } else {
+                    console.warn('[monitoring] Employment API returned', response.status);
+                }
+            } catch (apiErr) {
+                console.error('[monitoring] Employment API call failed:', apiErr.message);
             }
         }
     } catch (err) {
-        console.warn('[monitoring] Fallback employment lookup failed:', err.message);
+        console.error('[monitoring] Failed to resolve fleetManagerId:', err.message);
     }
 
     return null;
@@ -157,10 +191,26 @@ async function postTelemetry(payload) {
             return;
         }
         
-        // ⚠️ CRITICAL Guard 2: validate driverId and fleetManagerId are present
-        if (!payload.driverId || !payload.fleetManagerId) {
-            console.error('[monitoring] ❌ Telemetry blocked: missing driverId or fleetManagerId', payload);
+        // ⚠️ CRITICAL Guard 2: validate driverId is present
+        if (!payload.driverId) {
+            console.error('[monitoring] ❌ Telemetry blocked: missing driverId', payload);
             return;
+        }
+
+        // RESOLVE fleetManagerId if missing
+        let fleetManagerId = payload.fleetManagerId;
+        if (!fleetManagerId) {
+            console.log('[monitoring] ⏳ fleetManagerId missing, resolving from API...');
+            fleetManagerId = await resolveFleetManagerId(payload.driverId);
+            
+            if (!fleetManagerId) {
+                console.error('[monitoring] ❌ Telemetry blocked: could not resolve fleetManagerId', payload);
+                return;
+            }
+            
+            // Update payload with resolved fleetManagerId
+            payload.fleetManagerId = fleetManagerId;
+            console.log('[monitoring] ✅ fleetManagerId resolved:', fleetManagerId);
         }
         
         // 🚀 LOG AS REQUESTED: Sending telemetry with full payload details
@@ -330,7 +380,7 @@ const DriverMonitoring = () => {
         if (statusChanged || intervalElapsed) {
             const user = getUser();
 
-            // POST to backend → MongoDB stores alert
+            // POST to backend → MongoDB stores alert (async, fire-and-forget)
             postTelemetry({
                 driverId: user._id || user.id,
                 fleetManagerId: user.fleetManagerId,
@@ -340,7 +390,7 @@ const DriverMonitoring = () => {
                 monitoringActive: true,
                 source: 'frame-analysis',
                 timestamp: new Date().toISOString(),
-            });
+            }).catch(err => console.error('[monitoring] Uncaught postTelemetry error:', err));
 
             lastEmitTimeRef.current = now;
             lastStatusRef.current = currentStatus;
