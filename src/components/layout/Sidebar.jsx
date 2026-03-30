@@ -55,6 +55,7 @@ const Sidebar = ({ onLogout }) => {
                 { id: 'trips', label: 'Trips', icon: <Navigation size={20} />, path: '/business/trips' },
                 { id: 'hire', label: 'Hire Drivers', icon: <UserPlus size={20} />, path: '/business/hire' },
                 { id: 'drivers', label: 'My Drivers', icon: <Users size={20} />, path: '/business/drivers' },
+                { id: 'leaves', label: 'Driver Leaves', icon: <CalendarDays size={20} />, path: '/business/leaves' },
                 { id: 'maintenance', label: 'Maintenance', icon: <Wrench size={20} />, path: '/business/maintenance' },
                 { id: 'reports', label: 'Reports', icon: <BarChart2 size={20} />, path: '/business/reports' },
             ];
