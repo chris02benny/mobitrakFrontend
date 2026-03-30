@@ -22,7 +22,7 @@ const LiveTrackingPage = () => {
     const fetchExistingCredentials = async () => {
         try {
             const token = localStorage.getItem('authToken');
-            const response = await axios.get(`${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials`, {
+            const response = await axios.get(`${apiConfig.getTrackingDeviceUrl()}/credentials`, {
                 headers: { 'x-auth-token': token }
             });
 
@@ -72,7 +72,7 @@ const LiveTrackingPage = () => {
         try {
             const token = localStorage.getItem('authToken');
             const response = await axios.post(
-                `${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials`,
+                `${apiConfig.getTrackingDeviceUrl()}/credentials`,
                 deviceCredentials,
                 {
                     headers: { 'x-auth-token': token }

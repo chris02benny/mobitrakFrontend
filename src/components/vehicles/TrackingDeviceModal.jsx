@@ -23,7 +23,7 @@ const TrackingDeviceModal = ({ isOpen, onClose, vehicle, onSuccess }) => {
         try {
             const token = localStorage.getItem('authToken');
             const response = await axios.get(
-                `${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials/${vehicle._id}`,
+                `${apiConfig.getTrackingDeviceUrl()}/credentials/${vehicle._id}`,
                 {
                     headers: { 'x-auth-token': token }
                 }
@@ -73,7 +73,7 @@ const TrackingDeviceModal = ({ isOpen, onClose, vehicle, onSuccess }) => {
         try {
             const token = localStorage.getItem('authToken');
             const response = await axios.post(
-                `${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials`,
+                `${apiConfig.getTrackingDeviceUrl()}/credentials`,
                 {
                     ...credentials,
                     vehicleId: vehicle._id

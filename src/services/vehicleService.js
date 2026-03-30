@@ -240,7 +240,7 @@ export const vehicleService = {
             for (const vehicle of vehicles) {
                 if (vehicle.hasLiveTracking) {
                     try {
-                        const credResponse = await fetch(`${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials/${vehicle._id}/decrypt`, {
+                        const credResponse = await fetch(`${apiConfig.getTrackingDeviceUrl()}/credentials/${vehicle._id}/decrypt`, {
                             method: 'GET',
                             headers: {
                                 'x-auth-token': token,

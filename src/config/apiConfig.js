@@ -52,6 +52,7 @@ const SERVICE_PATHS = {
   USER: '/api/users',
   TRIP: '/api/trips',
   VEHICLE: '/api/vehicles',
+  TRACKING_DEVICE: '/api/tracking-device',
   DRIVER: '/api/drivers'
 };
 
@@ -83,9 +84,16 @@ export const apiConfig = {
   
   /**
    * Vehicle Service endpoints
-   * Used for: vehicle listings, vehicle details, tracking credentials
+   * Used for: vehicle listings, vehicle details
    */
   getVehicleServiceUrl: (path = '') => `${BASE_API_URL}${SERVICE_PATHS.VEHICLE}${path}`,
+
+  /**
+   * Tracking Device endpoints
+   * Used for: tracking device credential CRUD + decryption
+   * Resolves to /api/tracking-device (NOT nested under /api/vehicles)
+   */
+  getTrackingDeviceUrl: (path = '') => `${BASE_API_URL}${SERVICE_PATHS.TRACKING_DEVICE}${path}`,
   
   /**
    * Hiring/Driver Service endpoints
