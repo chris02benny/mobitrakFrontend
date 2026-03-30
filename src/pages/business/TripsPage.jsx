@@ -56,8 +56,9 @@ const TripsPage = () => {
     };
 
     const tabs = [
-        { id: 'all', label: 'All Trips', count: stats.total },
-        { id: 'add', label: 'Add Trip', icon: <Plus size={16} /> }
+        { id: 'all', label: 'All Trips', count: (stats.scheduled + stats.inProgress) },
+        { id: 'add', label: 'Add Trip', icon: <Plus size={16} /> },
+        { id: 'completed', label: 'Completed', count: stats.completed, icon: <Check size={16} /> }
     ];
 
     const toggleStatus = (status) => {
@@ -69,13 +70,25 @@ const TripsPage = () => {
     };
 
     const filteredTrips = trips.filter(trip => {
-        const matchesStatus = selectedStatuses.includes(trip.status);
+        // If active tab is 'all', show scheduled and in-progress
+        // If active tab is 'completed', show only completed
+        const matchesTab = activeTab === 'all' 
+            ? ['scheduled', 'in-progress'].includes(trip.status)
+            : activeTab === 'completed' 
+                ? trip.status === 'completed' 
+                : true;
+
+        const matchesStatus = activeTab === 'all' 
+            ? selectedStatuses.filter(s => s !== 'completed').includes(trip.status)
+            : true;
+
         const matchesSearch =
             trip.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             trip.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             trip.startDestination?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             trip.endDestination?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesStatus && matchesSearch;
+        
+        return matchesTab && matchesStatus && matchesSearch;
     });
 
     return (
@@ -152,7 +165,7 @@ const TripsPage = () => {
                                                 <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                                                     Trip Status
                                                 </div>
-                                                {['scheduled', 'in-progress', 'completed'].map(status => (
+                                                {(activeTab === 'all' ? ['scheduled', 'in-progress'] : ['completed']).map(status => (
                                                     <label
                                                         key={status}
                                                         className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer transition-colors"
@@ -168,14 +181,16 @@ const TripsPage = () => {
                                                         </span>
                                                     </label>
                                                 ))}
-                                                <div className="border-t border-gray-100 mt-2 pt-2 px-4">
-                                                    <button
-                                                        onClick={() => setSelectedStatuses(['scheduled', 'in-progress', 'completed'])}
-                                                        className="text-xs text-amber-600 hover:text-amber-700 font-medium"
-                                                    >
-                                                        Reset Filters
-                                                    </button>
-                                                </div>
+                                                {activeTab === 'all' && (
+                                                    <div className="border-t border-gray-100 mt-2 pt-2 px-4">
+                                                        <button
+                                                            onClick={() => setSelectedStatuses(['scheduled', 'in-progress'])}
+                                                            className="text-xs text-amber-600 hover:text-amber-700 font-medium"
+                                                        >
+                                                            Reset Filters
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </>
                                     )}

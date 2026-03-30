@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { tripService } from '../../services/tripService';
 import AssignedTripCard from '../../components/driver/AssignedTripCard';
 import TripTimeline from '../../components/driver/TripTimeline';
-import { Loader2, AlertCircle, Briefcase, Calendar } from 'lucide-react';
+import { Loader2, AlertCircle, Briefcase, Calendar, CheckCircle } from 'lucide-react';
 
 const MyTripsPage = () => {
     const [assignedTrips, setAssignedTrips] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [filter, setFilter] = useState('all'); // all, scheduled, in-progress
+    const [filter, setFilter] = useState('all'); // all, scheduled, in-progress, completed
 
     useEffect(() => {
         fetchAssignedTrips();
@@ -41,15 +41,16 @@ const MyTripsPage = () => {
     // Count trips by status
     const scheduledCount = assignedTrips.filter(t => t.status === 'scheduled').length;
     const inProgressCount = assignedTrips.filter(t => t.status === 'in-progress').length;
+    const completedCount = assignedTrips.filter(t => t.status === 'completed').length;
 
     return (
         <div className="flex flex-col gap-6">
             {/* Header with Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                     <div className="flex items-center gap-3">
-                        <div className="bg-blue-100 p-3 rounded-lg">
-                            <Briefcase size={24} className="text-blue-600" />
+                        <div className="bg-blue-100 p-3 rounded-lg text-blue-600">
+                            <Briefcase size={24} />
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-gray-800">{assignedTrips.length}</p>
@@ -57,10 +58,10 @@ const MyTripsPage = () => {
                         </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                     <div className="flex items-center gap-3">
-                        <div className="bg-amber-100 p-3 rounded-lg">
-                            <Calendar size={24} className="text-amber-600" />
+                        <div className="bg-amber-100 p-3 rounded-lg text-amber-600">
+                            <Calendar size={24} />
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-gray-800">{scheduledCount}</p>
@@ -68,14 +69,25 @@ const MyTripsPage = () => {
                         </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm border-l-4 border-l-green-500">
                     <div className="flex items-center gap-3">
-                        <div className="bg-green-100 p-3 rounded-lg">
-                            <Briefcase size={24} className="text-green-600" />
+                        <div className="bg-green-100 p-3 rounded-lg text-green-600">
+                            <Briefcase size={24} />
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-gray-800">{inProgressCount}</p>
                             <p className="text-sm text-gray-600">In Progress</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm bg-gradient-to-br from-indigo-50 to-white">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-indigo-100 p-3 rounded-lg text-indigo-600">
+                            <CheckCircle size={24} />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-800">{completedCount}</p>
+                            <p className="text-sm text-gray-600">Completed</p>
                         </div>
                     </div>
                 </div>
@@ -116,6 +128,16 @@ const MyTripsPage = () => {
                             }`}
                         >
                             In Progress ({inProgressCount})
+                        </button>
+                        <button
+                            onClick={() => setFilter('completed')}
+                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'completed'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            Completed ({completedCount})
                         </button>
                     </div>
                 </div>
