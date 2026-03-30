@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Truck, Clock, IndianRupee, Eye, Edit2, Trash2, Navigation } from 'lucide-react';
+import { Calendar, MapPin, Truck, Clock, IndianRupee, Eye, Edit2, Trash2, Navigation, CheckCircle } from 'lucide-react';
 import { tripService } from '../../services/tripService';
 import { vehicleService } from '../../services/vehicleService';
 import { hiringService } from '../../services/hiringService';
@@ -15,6 +15,9 @@ const TripsList = ({ trips, loading, onRefresh }) => {
     const [enriching, setEnriching] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [tripToDelete, setTripToDelete] = useState(null);
+    const [completingId, setCompletingId] = useState(null);
+    const [showCompleteModal, setShowCompleteModal] = useState(false);
+    const [tripToComplete, setTripToComplete] = useState(null);
 
     // Fetch vehicle and driver details for all trips (batch optimization)
     useEffect(() => {
@@ -101,6 +104,41 @@ const TripsList = ({ trips, loading, onRefresh }) => {
         setTripToDelete(null);
     };
 
+    const handleComplete = async (trip) => {
+        setTripToComplete(trip);
+        setShowCompleteModal(true);
+    };
+
+    const confirmComplete = async () => {
+        if (!tripToComplete) return;
+
+        setCompletingId(tripToComplete._id);
+        try {
+            await tripService.updateTrip(tripToComplete._id, { status: 'completed' });
+            toast.success('Trip marked as complete. Vehicle and driver are now available.');
+            setShowCompleteModal(false);
+            setTripToComplete(null);
+            onRefresh();
+        } catch (error) {
+            console.error('Update error:', error);
+            toast.error(error.message || 'Failed to complete trip');
+        } finally {
+            setCompletingId(null);
+        }
+    };
+
+    const cancelComplete = () => {
+        setShowCompleteModal(false);
+        setTripToComplete(null);
+    };
+
+    const isOverdue = (trip) => {
+        if (trip.status === 'completed' || trip.status === 'cancelled') return false;
+        const now = new Date();
+        const endDate = new Date(trip.endDateTime);
+        return now > endDate;
+    };
+
     const getStatusColor = (status) => {
         switch (status) {
             case 'scheduled':
@@ -180,6 +218,16 @@ const TripsList = ({ trips, loading, onRefresh }) => {
                                 >
                                     <Eye size={18} />
                                 </button>
+                                {isOverdue(trip) && (
+                                    <button
+                                        onClick={() => handleComplete(trip)}
+                                        disabled={completingId === trip._id}
+                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                                        title="Mark as Complete"
+                                    >
+                                        <CheckCircle size={18} />
+                                    </button>
+                                )}
                                 {trip.status === 'scheduled' && (
                                     <>
                                         <button
@@ -335,6 +383,19 @@ const TripsList = ({ trips, loading, onRefresh }) => {
                 confirmText="Delete Trip"
                 cancelText="Cancel"
                 loading={deletingId !== null}
+            />
+
+            {/* Complete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={showCompleteModal}
+                onClose={cancelComplete}
+                onConfirm={confirmComplete}
+                title="Mark Trip as Complete"
+                message="Are you sure you want to mark this trip as complete? This will finalize the trip record and make the vehicle and driver available for new assignments."
+                type="success"
+                confirmText="Complete Trip"
+                cancelText="Cancel"
+                loading={completingId !== null}
             />
         </div>
     );
