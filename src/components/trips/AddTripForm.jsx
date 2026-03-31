@@ -122,6 +122,8 @@ const AddTripForm = ({ onSuccess }) => {
         }
     };
 
+    const fetchDrivers = async () => {
+        try {
             // Fetch all employed drivers (not just "available" as we will show availability in calendar)
             const response = await hiringService.getEmployments();
             const employments = response.data?.employments || response.employments || [];

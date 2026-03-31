@@ -429,7 +429,7 @@ const BusinessCard = ({ business, onVerify, expanded, onToggle }) => {
                             alt={selectedImage.alt} 
                             onClose={() => setSelectedImage(null)} 
                         />
-                    )}}
+                    )}
 
                     {business.isVerifiedBusiness && (
                         <div className="flex gap-3 mt-4 pt-4 border-t border-gray-100">
