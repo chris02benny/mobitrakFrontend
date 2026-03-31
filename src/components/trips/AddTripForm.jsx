@@ -5,6 +5,9 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { tripService } from '../../services/tripService';
 import { vehicleService } from '../../services/vehicleService';
 import { hiringService } from '../../services/hiringService';
+import { leaveService } from '../../services/leaveService';
+import { maintenanceService } from '../../services/maintenanceService';
+import TripRangeCalendar from '../common/TripRangeCalendar';
 import toast from 'react-hot-toast';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -52,6 +55,8 @@ const AddTripForm = ({ onSuccess }) => {
     const [blockedDateRanges, setBlockedDateRanges] = useState([]);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [existingTrips, setExistingTrips] = useState([]);
+    const [allLeaves, setAllLeaves] = useState([]);
+    const [allMaintenance, setAllMaintenance] = useState([]);
 
     // Helper function to format duration from minutes to days, hours, minutes
     const formatDuration = (minutes) => {
@@ -72,16 +77,13 @@ const AddTripForm = ({ onSuccess }) => {
     useEffect(() => {
         fetchVehicles();
         fetchDrivers();
+        fetchLeaves();
+        fetchMaintenance();
         initializeMap();
     }, []);
 
-    // Re-fetch drivers when dates change to update availability
-    useEffect(() => {
-        if (formData.startDateTime && formData.endDateTime) {
-            fetchDrivers();
-            fetchVehicles();
-        }
-    }, [formData.startDateTime, formData.endDateTime]);
+    // We no longer need to re-fetch when dates change as we show all drivers/vehicles
+    // and handle availability visually in the calendar
 
     // Check if selected dates are enough for the trip duration
     useEffect(() => {
@@ -120,16 +122,8 @@ const AddTripForm = ({ onSuccess }) => {
         }
     };
 
-    const fetchDrivers = async () => {
-        try {
-            // Fetch available drivers based on trip assignments
-            const params = {};
-            if (formData.startDateTime && formData.endDateTime) {
-                params.startDateTime = formData.startDateTime;
-                params.endDateTime = formData.endDateTime;
-            }
-            
-            const response = await hiringService.getAvailableDriversForTrip(params);
+            // Fetch all employed drivers (not just "available" as we will show availability in calendar)
+            const response = await hiringService.getEmployments();
             const employments = response.data?.employments || response.employments || [];
             
             // Extract driver information from employments
@@ -164,6 +158,26 @@ const AddTripForm = ({ onSuccess }) => {
         }
     };
 
+    const fetchLeaves = async () => {
+        try {
+            const leaves = await leaveService.getCompanyLeaves('APPROVED');
+            setAllLeaves(leaves || []);
+        } catch (error) {
+            console.error('Error fetching leaves:', error);
+        }
+    };
+
+    const fetchMaintenance = async () => {
+        try {
+            const records = await maintenanceService.getMaintenanceRecords();
+            // Only consider SCHEDULED or IN_PROGRESS maintenance
+            const activeMaintenance = records.filter(m => m.status === 'SCHEDULED' || m.status === 'IN_PROGRESS');
+            setAllMaintenance(activeMaintenance || []);
+        } catch (error) {
+            console.error('Error fetching maintenance:', error);
+        }
+    };
+
     // Fetch existing trips for selected vehicle and driver
     const fetchExistingTrips = async () => {
         try {
@@ -189,7 +203,7 @@ const AddTripForm = ({ onSuccess }) => {
                 blocked.push({
                     start: new Date(trip.startDateTime),
                     end: new Date(trip.endDateTime),
-                    type: 'vehicle',
+                    type: 'Trip assignment',
                     tripId: trip._id
                 });
             }
@@ -199,11 +213,39 @@ const AddTripForm = ({ onSuccess }) => {
                 blocked.push({
                     start: new Date(trip.startDateTime),
                     end: new Date(trip.endDateTime),
-                    type: 'driver',
+                    type: 'Trip assignment',
                     tripId: trip._id
                 });
             }
         });
+
+        // Add leaves for selected driver
+        if (formData.driverId) {
+            allLeaves.forEach(leave => {
+                // Ensure leave belongs to the selected driver
+                const leaveDriverId = typeof leave.driverId === 'object' ? leave.driverId._id : leave.driverId;
+                if (String(leaveDriverId) === String(formData.driverId)) {
+                    blocked.push({
+                        start: new Date(leave.startDate),
+                        end: new Date(leave.endDate),
+                        type: 'Leave'
+                    });
+                }
+            });
+        }
+
+        // Add maintenance for selected vehicle
+        if (formData.vehicleId) {
+            allMaintenance.forEach(maintenance => {
+                if (String(maintenance.vehicleId) === String(formData.vehicleId)) {
+                    blocked.push({
+                        start: new Date(maintenance.schedule.plannedStartDate),
+                        end: new Date(maintenance.schedule.plannedEndDate),
+                        type: 'Maintenance'
+                    });
+                }
+            });
+        }
         
         setBlockedDateRanges(blocked);
     };
@@ -239,7 +281,7 @@ const AddTripForm = ({ onSuccess }) => {
         } else {
             setBlockedDateRanges([]);
         }
-    }, [formData.vehicleId, formData.driverId]);
+    }, [formData.vehicleId, formData.driverId, allLeaves, allMaintenance]);
 
     // Recalculate blocked ranges when existing trips change
     useEffect(() => {
@@ -634,10 +676,10 @@ const AddTripForm = ({ onSuccess }) => {
                 }
             }
 
-            // Check for date conflicts with existing trips
+            // Check for date conflicts with existing trips, leaves, or maintenance
             const conflict = checkDateConflict(formData.startDateTime, formData.endDateTime);
             if (conflict.conflict) {
-                const conflictType = conflict.type === 'vehicle' ? 'vehicle' : 'driver';
+                const conflictSource = conflict.type;
                 const blockedStart = conflict.blockedStart.toLocaleDateString('en-IN', {
                     day: '2-digit',
                     month: 'short',
@@ -648,7 +690,7 @@ const AddTripForm = ({ onSuccess }) => {
                     month: 'short',
                     year: 'numeric'
                 });
-                newErrors.startDateTime = `Selected ${conflictType} is already assigned to another trip from ${blockedStart} to ${blockedEnd}`;
+                newErrors.startDateTime = `Conflict: There is an existing ${conflictSource} from ${blockedStart} to ${blockedEnd}`;
             }
         }
 
@@ -800,17 +842,15 @@ const AddTripForm = ({ onSuccess }) => {
     const filteredVehicles = vehicles.filter(v => {
         // Filter by trip type
         const typeMatch = formData.tripType === 'commercial' ? v.vehicleType === 'goods' : v.vehicleType === 'passenger';
-        // Only show IDLE vehicles (assuming status field exists, otherwise show all)
-        const statusMatch = !v.status || v.status === 'IDLE' || v.status === 'idle';
-        return typeMatch && statusMatch;
+        // Show all active vehicles regardless of IDLE status
+        return typeMatch;
     });
 
     const filteredDrivers = drivers.filter(d => {
         // Filter drivers based on their service type matching the trip type
         const typeMatch = formData.tripType === 'commercial' ? d.serviceType === 'Commercial' : d.serviceType === 'Passenger';
-        // Only show UNASSIGNED drivers (using assignmentStatus field)
-        const statusMatch = !d.assignmentStatus || d.assignmentStatus === 'UNASSIGNED' || d.assignmentStatus === 'unassigned';
-        return typeMatch && statusMatch;
+        // Show all active drivers regardless of status
+        return typeMatch;
     });
 
     return (
@@ -1112,6 +1152,36 @@ const AddTripForm = ({ onSuccess }) => {
                         />
                     </div>
 
+                    {/* Trip Schedule with Calendar */}
+                    <div className="space-y-4">
+                        <label className="block text-sm font-medium text-gray-700">
+                            Schedule Trip <span className="text-red-500">*</span>
+                        </label>
+                        <TripRangeCalendar
+                            startDateTime={formData.startDateTime}
+                            endDateTime={formData.endDateTime}
+                            busyDates={blockedDateRanges}
+                            minDate={new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()}
+                            error={errors.startDateTime || errors.endDateTime}
+                            onChange={({ startDateTime, endDateTime }) => {
+                                setFormData(prev => ({
+                                    ...prev,
+                                    startDateTime,
+                                    endDateTime
+                                }));
+                                
+                                // Real-time validation
+                                const newErrors = { ...errors };
+                                delete newErrors.startDateTime;
+                                delete newErrors.endDateTime;
+                                setErrors(newErrors);
+                            }}
+                        />
+                        {(errors.startDateTime || errors.endDateTime) && (
+                            <p className="text-red-500 text-sm">{errors.startDateTime || errors.endDateTime}</p>
+                        )}
+                    </div>
+
                     {/* Stops */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
@@ -1171,79 +1241,6 @@ const AddTripForm = ({ onSuccess }) => {
                             onSelect={(place) => handleLocationSelect(place, 'endDestination')}
                             error={errors.endDestination}
                         />
-                    </div>
-
-                    {/* Date Time */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Start Date & Time <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="datetime-local"
-                                value={formData.startDateTime}
-                                min={new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 16)}
-                                onChange={(e) => {
-                                    const newValue = e.target.value;
-                                    setFormData(prev => ({ ...prev, startDateTime: newValue }));
-                                    
-                                    // Real-time validation
-                                    const newErrors = { ...errors };
-                                    if (newValue) {
-                                        const now = new Date();
-                                        const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-                                        const selectedDate = new Date(newValue);
-                                        
-                                        if (selectedDate < twoHoursFromNow) {
-                                            newErrors.startDateTime = 'Start date/time must be at least 2 hours from now';
-                                        } else {
-                                            delete newErrors.startDateTime;
-                                        }
-                                    } else {
-                                        delete newErrors.startDateTime;
-                                    }
-                                    setErrors(newErrors);
-                                }}
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
-                                    errors.startDateTime ? 'border-red-500' : 'border-gray-300'
-                                }`}
-                            />
-                            {errors.startDateTime && <p className="text-red-500 text-sm mt-1">{errors.startDateTime}</p>}
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                End Date & Time <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="datetime-local"
-                                value={formData.endDateTime}
-                                min={formData.startDateTime || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 16)}
-                                onChange={(e) => {
-                                    const newValue = e.target.value;
-                                    setFormData(prev => ({ ...prev, endDateTime: newValue }));
-                                    
-                                    // Real-time validation
-                                    const newErrors = { ...errors };
-                                    if (newValue && formData.startDateTime) {
-                                        const start = new Date(formData.startDateTime);
-                                        const end = new Date(newValue);
-                                        
-                                        if (end <= start) {
-                                            newErrors.endDateTime = 'End date/time must be after start date/time';
-                                        } else {
-                                            delete newErrors.endDateTime;
-                                        }
-                                    } else {
-                                        delete newErrors.endDateTime;
-                                    }
-                                    setErrors(newErrors);
-                                }}
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
-                                    errors.endDateTime ? 'border-red-500' : 'border-gray-300'
-                                }`}
-                            />
-                            {errors.endDateTime && <p className="text-red-500 text-sm mt-1">{errors.endDateTime}</p>}
-                        </div>
                     </div>
 
                     {/* Blocked Date Ranges Warning */}
