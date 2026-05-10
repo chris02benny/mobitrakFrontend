@@ -9,14 +9,6 @@ const VehicleStatusTable = ({ vehicles = [], loading = false }) => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
             <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
                 <span className="font-semibold text-gray-900">Vehicle Status Overview</span>
-                <div className="flex gap-2">
-                    <button className="px-3 py-1.5 border border-gray-200 rounded text-xs font-medium hover:bg-gray-50 transition-colors">
-                        Filter
-                    </button>
-                    <button className="px-3 py-1.5 border border-gray-200 rounded text-xs font-medium hover:bg-gray-50 transition-colors">
-                        Export
-                    </button>
-                </div>
             </div>
 
             <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1fr] px-6 py-3 bg-slate-50 border-b border-gray-200 text-[13px] font-semibold text-muted-foreground">

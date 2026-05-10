@@ -50,7 +50,7 @@ const Sidebar = ({ onLogout }) => {
         } else if (userData.role === 'fleetmanager') {
             return [
                 { id: 'overview', label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/business/dashboard' },
-                { id: 'map', label: 'Live Fleet Map', icon: <Map size={20} />, path: '/business/map' },
+
                 { id: 'vehicles', label: 'Vehicles', icon: <Truck size={20} />, path: '/business/vehicles' },
                 { id: 'trips', label: 'Trips', icon: <Navigation size={20} />, path: '/business/trips' },
                 { id: 'hire', label: 'Hire Drivers', icon: <UserPlus size={20} />, path: '/business/hire' },

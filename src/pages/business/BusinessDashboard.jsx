@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Truck, Activity, Clock, AlertCircle, ArrowUp, Wrench } from 'lucide-react';
 import StatCard from '../../components/dashboard/StatCard';
-import LiveFleetMap from '../../components/dashboard/LiveFleetMap';
+
 import RecentAlerts from '../../components/dashboard/RecentAlerts';
 import VehicleStatusTable from '../../components/dashboard/VehicleStatusTable';
 import { vehicleService } from '../../services/vehicleService';
@@ -74,11 +74,8 @@ const BusinessDashboard = () => {
                 />
             </div>
 
-            {/* Map & Alerts Grid */}
+            {/* Alerts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[500px]">
-                <div className="lg:col-span-2 h-full">
-                    <LiveFleetMap />
-                </div>
                 <div className="lg:col-span-1 h-full">
                     <RecentAlerts />
                 </div>
