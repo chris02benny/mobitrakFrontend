@@ -870,6 +870,30 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
                             />
                         </div>
 
+                        {/* End Destination */}
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    End Destination <span className="text-red-500">*</span>
+                                </label>
+                                {formData.endDestination.name && (
+                                    <button
+                                        type="button"
+                                        onClick={() => clearLocation('endDestination')}
+                                        className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
+                                    >
+                                        <X size={16} />
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                            <LocationPicker
+                                value={formData.endDestination.name}
+                                onSelect={(place) => handleLocationSelect(place, 'endDestination')}
+                                error={errors.endDestination}
+                            />
+                        </div>
+
                         {/* Stops */}
                         <div>
                             <div className="flex items-center justify-between mb-2">
@@ -905,30 +929,6 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
                                     </div>
                                 ))}
                             </div>
-                        </div>
-
-                        {/* End Destination */}
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    End Destination <span className="text-red-500">*</span>
-                                </label>
-                                {formData.endDestination.name && (
-                                    <button
-                                        type="button"
-                                        onClick={() => clearLocation('endDestination')}
-                                        className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
-                                    >
-                                        <X size={16} />
-                                        Clear
-                                    </button>
-                                )}
-                            </div>
-                            <LocationPicker
-                                value={formData.endDestination.name}
-                                onSelect={(place) => handleLocationSelect(place, 'endDestination')}
-                                error={errors.endDestination}
-                            />
                         </div>
 
                         {/* Date Time */}

@@ -1154,6 +1154,30 @@ const AddTripForm = ({ onSuccess }) => {
                         />
                     </div>
 
+                    {/* End Destination with Clear Button */}
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700">
+                                End Destination <span className="text-red-500">*</span>
+                            </label>
+                            {formData.endDestination.name && (
+                                <button
+                                    type="button"
+                                    onClick={() => clearLocation('endDestination')}
+                                    className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
+                                >
+                                    <X size={16} />
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                        <LocationPicker
+                            value={formData.endDestination.name}
+                            onSelect={(place) => handleLocationSelect(place, 'endDestination')}
+                            error={errors.endDestination}
+                        />
+                    </div>
+
                     {/* Trip Schedule with Calendar */}
                     <div className="space-y-4">
                         <label className="block text-sm font-medium text-gray-700">
@@ -1219,30 +1243,6 @@ const AddTripForm = ({ onSuccess }) => {
                                 </div>
                             ))}
                         </div>
-                    </div>
-
-                    {/* End Destination with Clear Button */}
-                    <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="block text-sm font-medium text-gray-700">
-                                End Destination <span className="text-red-500">*</span>
-                            </label>
-                            {formData.endDestination.name && (
-                                <button
-                                    type="button"
-                                    onClick={() => clearLocation('endDestination')}
-                                    className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
-                                >
-                                    <X size={16} />
-                                    Clear
-                                </button>
-                            )}
-                        </div>
-                        <LocationPicker
-                            value={formData.endDestination.name}
-                            onSelect={(place) => handleLocationSelect(place, 'endDestination')}
-                            error={errors.endDestination}
-                        />
                     </div>
 
                     {/* Blocked Date Ranges Warning */}
