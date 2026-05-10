@@ -20,7 +20,7 @@ import TripsPage from './pages/business/TripsPage';
 import HireDriversPage from './pages/business/HireDriversPage';
 import DriversPage from './pages/business/DriversPage';
 import MaintenancePage from './pages/business/MaintenancePage';
-import ReportsPage from './pages/business/ReportsPage';
+import FleetLeavesPage from './pages/business/FleetLeavesPage';
 import BusinessSettingsPage from './pages/business/SettingsPage';
 
 // Driver Pages
@@ -68,7 +68,7 @@ function App() {
             <Route path="/business/hire" element={<HireDriversPage />} />
             <Route path="/business/drivers" element={<DriversPage />} />
             <Route path="/business/maintenance" element={<MaintenancePage />} />
-            <Route path="/business/reports" element={<ReportsPage />} />
+            <Route path="/business/leaves" element={<FleetLeavesPage />} />
             <Route path="/business/settings" element={<BusinessSettingsPage />} />
 
             {/* Driver Routes */}
