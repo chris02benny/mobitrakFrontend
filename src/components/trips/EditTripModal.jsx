@@ -363,9 +363,14 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
                 };
             }).filter(driver => driver !== null); // Remove any null entries
             
+            // Filter out duplicate drivers by _id
+            const uniqueDriverList = driverList.filter((driver, index, self) => 
+                index === self.findIndex((d) => d._id === driver._id)
+            );
+            
             // Always include the currently assigned driver at the top
             if (trip.driver && trip.driverId) {
-                const driverExists = driverList.some(d => d._id === String(trip.driverId));
+                const driverExists = uniqueDriverList.some(d => d._id === String(trip.driverId));
                 if (!driverExists) {
                     // Add currently assigned driver to the list
                     const assignedDriver = {
@@ -374,15 +379,15 @@ const EditTripModal = ({ trip, onClose, onSuccess }) => {
                         email: trip.driver.email || '',
                         assignmentStatus: 'ASSIGNED'
                     };
-                    setDrivers([assignedDriver, ...driverList]);
+                    setDrivers([assignedDriver, ...uniqueDriverList]);
                 } else {
                     // Move currently assigned driver to top
-                    const otherDrivers = driverList.filter(d => d._id !== String(trip.driverId));
-                    const assignedDriver = driverList.find(d => d._id === String(trip.driverId));
+                    const otherDrivers = uniqueDriverList.filter(d => d._id !== String(trip.driverId));
+                    const assignedDriver = uniqueDriverList.find(d => d._id === String(trip.driverId));
                     setDrivers([assignedDriver, ...otherDrivers]);
                 }
             } else {
-                setDrivers(driverList);
+                setDrivers(uniqueDriverList);
             }
         } catch (error) {
             console.error('Error fetching drivers:', error);

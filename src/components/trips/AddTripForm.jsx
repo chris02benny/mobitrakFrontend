@@ -153,7 +153,12 @@ const AddTripForm = ({ onSuccess }) => {
                 };
             }).filter(driver => driver !== null); // Remove any null entries
             
-            setDrivers(driverList);
+            // Filter out duplicate drivers by _id
+            const uniqueDriverList = driverList.filter((driver, index, self) => 
+                index === self.findIndex((d) => d._id === driver._id)
+            );
+            
+            setDrivers(uniqueDriverList);
         } catch (error) {
             console.error('Error fetching drivers:', error);
             // Don't show error toast as drivers are optional
