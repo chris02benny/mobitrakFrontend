@@ -31,7 +31,7 @@ const LiveTrackingModal = ({ isOpen, onClose, vehicle }) => {
       setFetchingCredentials(true);
       const token = localStorage.getItem('authToken');
       const response = await axios.get(
-        `${apiConfig.getTrackingDeviceUrl()}/credentials/${vehicle._id}/decrypt`,
+        `${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials/${vehicle._id}/decrypt`,
         {
           headers: { 'x-auth-token': token }
         }

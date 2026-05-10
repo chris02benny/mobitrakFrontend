@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Truck, Map, Users, Wrench, BarChart2, Settings, LogOut, User, Route, Car, Briefcase, Building2, ShieldCheck, UserPlus, Navigation, CalendarDays, Activity } from 'lucide-react';
+import { LayoutDashboard, Truck, Map, Users, Wrench, BarChart2, Settings, LogOut, User, Route, Car, Briefcase, Building2, ShieldCheck, UserPlus, Navigation } from 'lucide-react';
 import axios from 'axios';
 import { apiConfig } from '../../config/apiConfig.js';
 
@@ -55,17 +55,15 @@ const Sidebar = ({ onLogout }) => {
                 { id: 'trips', label: 'Trips', icon: <Navigation size={20} />, path: '/business/trips' },
                 { id: 'hire', label: 'Hire Drivers', icon: <UserPlus size={20} />, path: '/business/hire' },
                 { id: 'drivers', label: 'My Drivers', icon: <Users size={20} />, path: '/business/drivers' },
-                { id: 'leaves', label: 'Driver Leaves', icon: <CalendarDays size={20} />, path: '/business/leaves' },
                 { id: 'maintenance', label: 'Maintenance', icon: <Wrench size={20} />, path: '/business/maintenance' },
                 { id: 'reports', label: 'Reports', icon: <BarChart2 size={20} />, path: '/business/reports' },
             ];
         } else if (userData.role === 'driver') {
             return [
                 { id: 'overview', label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/driver/dashboard' },
-                { id: 'monitoring', label: 'Live Monitoring', icon: <Activity size={20} />, path: '/driver/monitoring' },
                 { id: 'jobs', label: 'Jobs', icon: <Briefcase size={20} />, path: '/driver/jobs' },
                 { id: 'trips', label: 'My Trips', icon: <Route size={20} />, path: '/driver/trips' },
-                { id: 'leave', label: 'Apply Leave', icon: <CalendarDays size={20} />, path: '/driver/leave' },
+                { id: 'vehicle', label: 'My Vehicle', icon: <Car size={20} />, path: '/driver/vehicle' },
             ];
         }
 

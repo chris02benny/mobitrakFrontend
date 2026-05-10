@@ -154,7 +154,7 @@ export const vehicleService = {
     updateVehicle: async (vehicleId, formData) => {
         const token = getAuthToken();
         try {
-            const response = await fetch(`${API_BASE_URL}/${vehicleId}`, {
+            const response = await fetch(`${apiConfig.getVehicleServiceUrl()}/${vehicleId}`, {
                 method: 'PUT',
                 headers: {
                     'x-auth-token': token,
@@ -177,7 +177,7 @@ export const vehicleService = {
     deleteVehicle: async (vehicleId) => {
         const token = getAuthToken();
         try {
-            const response = await fetch(`${API_BASE_URL}/${vehicleId}`, {
+            const response = await fetch(`${apiConfig.getVehicleServiceUrl()}/${vehicleId}`, {
                 method: 'DELETE',
                 headers: {
                     'x-auth-token': token,
@@ -240,7 +240,7 @@ export const vehicleService = {
             for (const vehicle of vehicles) {
                 if (vehicle.hasLiveTracking) {
                     try {
-                        const credResponse = await fetch(`${apiConfig.getTrackingDeviceUrl()}/credentials/${vehicle._id}/decrypt`, {
+                        const credResponse = await fetch(`${apiConfig.getVehicleServiceUrl()}/tracking-device/credentials/${vehicle._id}/decrypt`, {
                             method: 'GET',
                             headers: {
                                 'x-auth-token': token,
