@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Route, Clock, Award, Briefcase, Car, Eye } from 'lucide-react';
+import { Route, Clock, Award, Briefcase, Car, Eye, Calendar, Navigation } from 'lucide-react';
 import StatCard from '../../components/dashboard/StatCard';
 import { tripService } from '../../services/tripService';
 
@@ -9,7 +9,8 @@ const DriverDashboard = () => {
 
     const [stats, setStats] = useState({
         completedTrips: 0,
-        hoursDriven: 0
+        hoursDriven: 0,
+        kmDriven: 0
     });
     const [loading, setLoading] = useState(true);
 
@@ -18,11 +19,22 @@ const DriverDashboard = () => {
             try {
                 setLoading(true);
                 const trips = await tripService.getDriverAssignedTrips();
-                const completedCount = trips.filter(t => t.status === 'completed').length;
+                const completedTrips = trips.filter(t => t.status === 'completed');
+                
+                let totalMinutes = 0;
+                let totalKm = 0;
+                
+                completedTrips.forEach(t => {
+                    totalMinutes += t.duration || 0;
+                    totalKm += t.distance || 0;
+                });
+                
+                const totalHours = Math.round(totalMinutes / 60);
                 
                 setStats({
-                    completedTrips: completedCount,
-                    hoursDriven: 0 // Hours driven data not yet available from API
+                    completedTrips: completedTrips.length,
+                    hoursDriven: totalHours,
+                    kmDriven: Math.round(totalKm)
                 });
             } catch (err) {
                 console.error('Error fetching dashboard stats:', err);
@@ -37,7 +49,7 @@ const DriverDashboard = () => {
     return (
         <div className="flex flex-col gap-6">
             {/* Stats Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <StatCard
                     title="Total Trips"
                     value={stats.completedTrips.toString()}
@@ -51,17 +63,27 @@ const DriverDashboard = () => {
                 <StatCard
                     title="Hours Driven"
                     value={stats.hoursDriven.toString()}
-                    subtext="This month"
+                    subtext="Total hours"
                     subtextIcon={<Clock size={12} />}
                     icon={<Clock size={20} />}
                     iconBg="#dcfce7"
                     iconColor="#166534"
                     loading={loading}
                 />
+                <StatCard
+                    title="KM Driven"
+                    value={stats.kmDriven.toString()}
+                    subtext="Total distance"
+                    subtextIcon={<Navigation size={12} />}
+                    icon={<Navigation size={20} />}
+                    iconBg="#e0e7ff"
+                    iconColor="#4338ca"
+                    loading={loading}
+                />
             </div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div
                     onClick={() => navigate('/driver/jobs')}
                     className="bg-white rounded-xl border border-gray-200 p-6 cursor-pointer hover:shadow-lg transition-shadow"
@@ -77,6 +99,14 @@ const DriverDashboard = () => {
                     <Route size={32} className="text-amber-500 mb-3" />
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">My Trips</h3>
                     <p className="text-gray-600 text-sm">View your trip history and upcoming assignments</p>
+                </div>
+                <div
+                    onClick={() => navigate('/driver/leaves')}
+                    className="bg-white rounded-xl border border-gray-200 p-6 cursor-pointer hover:shadow-lg transition-shadow"
+                >
+                    <Calendar size={32} className="text-amber-500 mb-3" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Apply Leave</h3>
+                    <p className="text-gray-600 text-sm">Request time off and manage your leave applications</p>
                 </div>
 
                 {/* ── NEW: Start Monitoring card ── */}

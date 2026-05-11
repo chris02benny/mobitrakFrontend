@@ -30,6 +30,7 @@ import MyTripsPage from './pages/driver/MyTripsPage';
 import MyVehiclePage from './pages/driver/MyVehiclePage';
 import DriverSettingsPage from './pages/driver/SettingsPage';
 import DriverMonitoringPage from './pages/driver/DriverMonitoringPage';
+import ApplyLeavePage from './pages/driver/ApplyLeavePage';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -77,6 +78,7 @@ function App() {
             <Route path="/driver/jobs" element={<JobsPage />} />
             <Route path="/driver/trips" element={<MyTripsPage />} />
             <Route path="/driver/vehicle" element={<MyVehiclePage />} />
+            <Route path="/driver/leaves" element={<ApplyLeavePage />} />
             <Route path="/driver/settings" element={<DriverSettingsPage />} />
           </Route>
 

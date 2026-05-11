@@ -64,6 +64,7 @@ const Sidebar = ({ onLogout }) => {
                 { id: 'jobs', label: 'Jobs', icon: <Briefcase size={20} />, path: '/driver/jobs' },
                 { id: 'trips', label: 'My Trips', icon: <Route size={20} />, path: '/driver/trips' },
                 { id: 'monitoring', label: 'Live Monitoring', icon: <Map size={20} />, path: '/driver/monitoring' },
+                { id: 'leaves', label: 'Apply Leave', icon: <Calendar size={20} />, path: '/driver/leaves' },
             ];
         }
 
