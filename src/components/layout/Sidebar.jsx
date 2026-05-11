@@ -63,7 +63,7 @@ const Sidebar = ({ onLogout }) => {
                 { id: 'overview', label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/driver/dashboard' },
                 { id: 'jobs', label: 'Jobs', icon: <Briefcase size={20} />, path: '/driver/jobs' },
                 { id: 'trips', label: 'My Trips', icon: <Route size={20} />, path: '/driver/trips' },
-                { id: 'vehicle', label: 'My Vehicle', icon: <Car size={20} />, path: '/driver/vehicle' },
+                { id: 'monitoring', label: 'Live Monitoring', icon: <Map size={20} />, path: '/driver/monitoring' },
             ];
         }
 

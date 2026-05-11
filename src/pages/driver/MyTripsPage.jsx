@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { tripService } from '../../services/tripService';
 import AssignedTripCard from '../../components/driver/AssignedTripCard';
 import TripTimeline from '../../components/driver/TripTimeline';
-import { Loader2, AlertCircle, Briefcase, Calendar } from 'lucide-react';
+import { Loader2, AlertCircle, Briefcase, Calendar, CheckCircle } from 'lucide-react';
 
 const MyTripsPage = () => {
     const [assignedTrips, setAssignedTrips] = useState([]);
@@ -41,11 +41,12 @@ const MyTripsPage = () => {
     // Count trips by status
     const scheduledCount = assignedTrips.filter(t => t.status === 'scheduled').length;
     const inProgressCount = assignedTrips.filter(t => t.status === 'in-progress').length;
+    const completedCount = assignedTrips.filter(t => t.status === 'completed').length;
 
     return (
         <div className="flex flex-col gap-6">
             {/* Header with Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-xl border border-gray-200 p-4">
                     <div className="flex items-center gap-3">
                         <div className="bg-blue-100 p-3 rounded-lg">
@@ -76,6 +77,17 @@ const MyTripsPage = () => {
                         <div>
                             <p className="text-2xl font-bold text-gray-800">{inProgressCount}</p>
                             <p className="text-sm text-gray-600">In Progress</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-purple-100 p-3 rounded-lg">
+                            <CheckCircle size={24} className="text-purple-600" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-800">{completedCount}</p>
+                            <p className="text-sm text-gray-600">Completed</p>
                         </div>
                     </div>
                 </div>
@@ -116,6 +128,16 @@ const MyTripsPage = () => {
                             }`}
                         >
                             In Progress ({inProgressCount})
+                        </button>
+                        <button
+                            onClick={() => setFilter('completed')}
+                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'completed'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            Completed ({completedCount})
                         </button>
                     </div>
                 </div>
