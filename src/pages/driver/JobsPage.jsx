@@ -154,11 +154,7 @@ const JobsPage = () => {
 
     return (
         <div className="flex flex-col gap-6">
-            {/* Page Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Job Opportunities</h1>
-                <p className="text-gray-500 text-sm mt-1">Review and respond to job offers from businesses</p>
-            </div>
+
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-gray-200">

@@ -567,13 +567,7 @@ const DriverMonitoring = () => {
     return (
         <div className="flex flex-col gap-6 max-w-4xl mx-auto">
             {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Driver Monitoring</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        Real-time drowsiness detection using facial landmark analysis
-                    </p>
-                </div>
+            <div className="flex items-center justify-end">
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                     <span className="w-2 h-2 rounded-full bg-green-500" />
                     Telemetrics Active

@@ -96,8 +96,7 @@ const MyTripsPage = () => {
             {/* Main Content */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
                 {/* Filter Tabs */}
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-800">My Trips</h2>
+                <div className="flex items-center justify-end mb-6">
                     <div className="flex gap-2">
                         <button
                             onClick={() => setFilter('all')}
