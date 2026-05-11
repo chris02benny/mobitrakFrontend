@@ -567,56 +567,59 @@ const DriverMonitoring = () => {
                 </div>
             </div>
 
-            {/* ── Alert Banner (DROWSY) ── */}
-            {isDrowsy && isMonitoring && (
-                <div className="flex items-center gap-3 bg-red-50 border border-red-300 rounded-xl px-5 py-4 animate-pulse">
-                    <span className="text-2xl">⚠️</span>
-                    <div>
-                        <p className="font-bold text-red-700 text-lg">Drowsiness Detected!</p>
-                        <p className="text-sm text-red-600">
-                            Please pull over safely and take a rest break.
-                            Your fleet manager has been notified.
-                        </p>
+            {/* ── Popup Alert Cards Container ── */}
+            <div className="fixed top-24 right-6 z-50 flex flex-col gap-4 max-w-sm w-full">
+                {/* ── Alert Banner (DROWSY) ── */}
+                {isDrowsy && isMonitoring && (
+                    <div className="flex items-center gap-3 bg-red-50 border border-red-300 rounded-xl px-5 py-4 animate-pulse shadow-xl">
+                        <span className="text-2xl">⚠️</span>
+                        <div>
+                            <p className="font-bold text-red-700 text-lg">Drowsiness Detected!</p>
+                            <p className="text-sm text-red-600">
+                                Please pull over safely and take a rest break.
+                                Your fleet manager has been notified.
+                            </p>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* ── Alert Banner (LOW LIGHT) ── */}
-            {isLowLight && isMonitoring && (
-                <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4">
-                    <span className="text-2xl">💡</span>
-                    <div>
-                        <p className="font-bold text-amber-800 text-lg">Camera Feed Too Dark</p>
-                        <p className="text-sm text-amber-700">
-                            Cannot analyze fatigue properly. Please improve the lighting in your cabin.
-                        </p>
+                {/* ── Alert Banner (LOW LIGHT) ── */}
+                {isLowLight && isMonitoring && (
+                    <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 shadow-xl">
+                        <span className="text-2xl">💡</span>
+                        <div>
+                            <p className="font-bold text-amber-800 text-lg">Camera Feed Too Dark</p>
+                            <p className="text-sm text-amber-700">
+                                Cannot analyze fatigue properly. Please improve the lighting in your cabin.
+                            </p>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* ── Alert Banner (NO FACE) ── */}
-            {isNoFace && isMonitoring && (
-                <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4">
-                    <span className="text-2xl">👤</span>
-                    <div>
-                        <p className="font-bold text-amber-800 text-lg">Face Not Detected</p>
-                        <p className="text-sm text-amber-700">
-                            Please align your face within the camera view to enable monitoring.
-                        </p>
+                {/* ── Alert Banner (NO FACE) ── */}
+                {isNoFace && isMonitoring && (
+                    <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 shadow-xl">
+                        <span className="text-2xl">👤</span>
+                        <div>
+                            <p className="font-bold text-amber-800 text-lg">Face Not Detected</p>
+                            <p className="text-sm text-amber-700">
+                                Please align your face within the camera view to enable monitoring.
+                            </p>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* ── Error Banner ── */}
-            {error && (
-                <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4">
-                    <span className="text-xl">⚠️</span>
-                    <div>
-                        <p className="font-semibold text-amber-800">Could not start monitoring</p>
-                        <p className="text-sm text-amber-700">{error}</p>
+                {/* ── Error Banner ── */}
+                {error && (
+                    <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 shadow-xl">
+                        <span className="text-xl">⚠️</span>
+                        <div>
+                            <p className="font-semibold text-amber-800">Could not start monitoring</p>
+                            <p className="text-sm text-amber-700">{error}</p>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* ── Video Feed ── */}
@@ -723,21 +726,7 @@ const DriverMonitoring = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                            <p className="text-xs text-gray-500 mb-1">Detection Rate</p>
-                            <p className="text-lg font-bold text-gray-800">~10 fps</p>
-                        </div>
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                            <p className="text-xs text-gray-500 mb-1">Window</p>
-                            <p className="text-lg font-bold text-gray-800">15 seconds</p>
-                        </div>
-                    </div>
 
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-700 leading-relaxed">
-                        <strong>How it works:</strong> Your camera detects facial landmarks in real-time. EAR measures how open your eyes are.
-                        If your eyes stay closed for more than 40% of the last 15 seconds, a drowsiness alert is sent to your fleet manager.
-                    </div>
 
                     <button
                         onClick={isMonitoring ? stopMonitoring : startMonitoring}
