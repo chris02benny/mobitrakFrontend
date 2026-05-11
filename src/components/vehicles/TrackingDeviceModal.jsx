@@ -170,6 +170,7 @@ const TrackingDeviceModal = ({ isOpen, onClose, vehicle, onSuccess }) => {
                                     onChange={handleInputChange}
                                     placeholder="Enter device password"
                                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors pr-12"
+                                    autoComplete="current-password"
                                     required
                                 />
                                 <button
