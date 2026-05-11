@@ -16,6 +16,7 @@ import React, {
     useEffect,
     useCallback,
 } from 'react';
+import toast from 'react-hot-toast';
 import {
     computeMeanEAR,
     computePERCLOS,
@@ -373,6 +374,17 @@ const DriverMonitoring = () => {
         const statusChanged = currentStatus !== lastStatusRef.current;
         const intervalElapsed = now - lastEmitTimeRef.current > EMIT_INTERVAL_MS;
 
+        if (statusChanged) {
+            toast.dismiss('monitoring-toast');
+            if (currentStatus === 'DROWSY') {
+                toast.error('Drowsiness Detected! Please pull over safely and take a rest break.', { id: 'monitoring-toast', duration: 5000 });
+            } else if (currentStatus === 'LOW_LIGHT') {
+                toast.error('Camera Feed Too Dark. Please improve the lighting in your cabin.', { id: 'monitoring-toast', duration: 4000 });
+            } else if (currentStatus === 'NO_FACE') {
+                toast.error('Face Not Detected. Please align your face within the camera view.', { id: 'monitoring-toast', duration: 4000 });
+            }
+        }
+
         if (statusChanged || intervalElapsed) {
             const user = getUser();
 
@@ -477,6 +489,7 @@ const DriverMonitoring = () => {
         } catch (err) {
             console.error('[monitoring] Start error:', err);
             setError(err.message || 'Failed to start monitoring');
+            toast.error(err.message || 'Failed to start monitoring');
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(t => t.stop());
                 streamRef.current = null;
@@ -567,63 +580,9 @@ const DriverMonitoring = () => {
                 </div>
             </div>
 
-            {/* ── Popup Alert Cards Container ── */}
-            <div className="fixed top-24 right-6 z-50 flex flex-col gap-4 max-w-sm w-full">
-                {/* ── Alert Banner (DROWSY) ── */}
-                {isDrowsy && isMonitoring && (
-                    <div className="flex items-center gap-3 bg-red-50 border border-red-300 rounded-xl px-5 py-4 animate-pulse shadow-xl">
-                        <span className="text-2xl">⚠️</span>
-                        <div>
-                            <p className="font-bold text-red-700 text-lg">Drowsiness Detected!</p>
-                            <p className="text-sm text-red-600">
-                                Please pull over safely and take a rest break.
-                                Your fleet manager has been notified.
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {/* ── Alert Banner (LOW LIGHT) ── */}
-                {isLowLight && isMonitoring && (
-                    <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 shadow-xl">
-                        <span className="text-2xl">💡</span>
-                        <div>
-                            <p className="font-bold text-amber-800 text-lg">Camera Feed Too Dark</p>
-                            <p className="text-sm text-amber-700">
-                                Cannot analyze fatigue properly. Please improve the lighting in your cabin.
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {/* ── Alert Banner (NO FACE) ── */}
-                {isNoFace && isMonitoring && (
-                    <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 shadow-xl">
-                        <span className="text-2xl">👤</span>
-                        <div>
-                            <p className="font-bold text-amber-800 text-lg">Face Not Detected</p>
-                            <p className="text-sm text-amber-700">
-                                Please align your face within the camera view to enable monitoring.
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {/* ── Error Banner ── */}
-                {error && (
-                    <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 shadow-xl">
-                        <span className="text-xl">⚠️</span>
-                        <div>
-                            <p className="font-semibold text-amber-800">Could not start monitoring</p>
-                            <p className="text-sm text-amber-700">{error}</p>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* ── Video Feed ── */}
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm lg:col-span-2">
                     <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                         <span className="font-semibold text-gray-800 text-sm">Camera Feed</span>
                         {isMonitoring && (
@@ -665,7 +624,7 @@ const DriverMonitoring = () => {
                 </div>
 
                 {/* ── Status Panel ── */}
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 lg:col-span-1">
                     <div className={`rounded-xl border p-5 shadow-sm transition-colors duration-500 ${isDrowsy && isMonitoring
                         ? 'bg-red-50 border-red-200'
                         : (isLowLight || isNoFace) && isMonitoring ? 'bg-amber-50 border-amber-200'

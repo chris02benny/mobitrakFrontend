@@ -65,8 +65,10 @@ const Header = ({ onLogout }) => {
             return { title: 'Dashboard', subtitle: 'Your driving overview' };
         } else if (path === '/driver/trips') {
             return { title: 'My Trips', subtitle: 'View your trip history' };
-        } else if (path === '/driver/vehicle') {
-            return { title: 'My Vehicle', subtitle: 'Your assigned vehicle details' };
+        } else if (path === '/driver/jobs') {
+            return { title: 'Jobs', subtitle: 'View available job opportunities' };
+        } else if (path === '/driver/monitoring') {
+            return { title: 'Live Monitoring', subtitle: 'Real-time drowsiness detection' };
         } else if (path === '/driver/settings') {
             return { title: 'Profile', subtitle: 'Manage your account information' };
         }
