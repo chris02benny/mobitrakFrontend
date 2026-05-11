@@ -58,7 +58,8 @@ const TripsList = ({ trips, loading, onRefresh }) => {
                     if (trip.driverId && typeof trip.driverId === 'object') {
                         enrichedTrip.driver = trip.driverId;
                     } else if (trip.driverId) {
-                        enrichedTrip.driver = driverMap[trip.driverId] || null;
+                        const fetchedDriver = driverMap[trip.driverId];
+                        enrichedTrip.driver = fetchedDriver?.user || fetchedDriver || null;
                     }
 
                     return enrichedTrip;
@@ -403,6 +404,29 @@ const TripsList = ({ trips, loading, onRefresh }) => {
 
 // Trip Details Modal Component
 const TripDetailsModal = ({ trip, onClose }) => {
+    const formatDuration = (minutes) => {
+        if (!minutes || minutes <= 0) return '0 min';
+        const days = Math.floor(minutes / (24 * 60));
+        const hours = Math.floor((minutes % (24 * 60)) / 60);
+        const mins = Math.floor(minutes % 60);
+        const parts = [];
+        if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
+        if (hours > 0) parts.push(`${hours} hr${hours > 1 ? 's' : ''}`);
+        if (mins > 0) parts.push(`${mins} min`);
+        return parts.join(', ') || '0 min';
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        return new Date(dateString).toLocaleString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -435,49 +459,126 @@ const TripDetailsModal = ({ trip, onClose }) => {
                             </span>
                         </div>
 
-                        {/* Route Information */}
-                        <div className="bg-gray-50 p-4 rounded-lg">
-                            <h3 className="font-medium text-gray-900 mb-3">Route Information</h3>
-                            <div className="space-y-3">
+                        {/* Basic Information */}
+                        <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+                            <h4 className="font-semibold text-gray-900 mb-2">Trip Information</h4>
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <div className="text-sm text-gray-600 mb-1">Start</div>
-                                    <div className="font-medium">{trip.startDestination.name}</div>
-                                    <div className="text-sm text-gray-600">{trip.startDestination.address}</div>
+                                    <span className="text-gray-600">Trip Type:</span>
+                                    <span className="font-medium text-gray-900 ml-2 capitalize">{trip.tripType}</span>
                                 </div>
+                                <div>
+                                    <span className="text-gray-600">Two-Way:</span>
+                                    <span className="font-medium text-gray-900 ml-2">{trip.isTwoWay ? 'Yes' : 'No'}</span>
+                                </div>
+                            </div>
+                            <div className="pt-2 border-t border-gray-200">
+                                <div className="text-gray-600">Customer:</div>
+                                <div className="font-medium text-gray-900">{trip.customerName || 'N/A'}</div>
+                                <div className="text-xs text-gray-500">{trip.customerEmail || 'N/A'}</div>
+                                <div className="text-xs text-gray-500">{trip.customerContact || 'N/A'}</div>
+                            </div>
+                        </div>
 
+                        {/* Route Details */}
+                        <div className="bg-blue-50 rounded-lg p-4 space-y-2 text-sm">
+                            <h4 className="font-semibold text-gray-900 mb-2">Route Details</h4>
+                            <div className="space-y-2">
+                                <div className="flex items-start gap-2">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5"></div>
+                                    <div className="flex-1">
+                                        <div className="text-gray-600 text-xs">From</div>
+                                        <div className="font-medium text-gray-900">{trip.startDestination?.name || 'N/A'}</div>
+                                        <div className="text-xs text-gray-500">{trip.startDestination?.address}</div>
+                                    </div>
+                                </div>
                                 {trip.stops && trip.stops.length > 0 && (
-                                    <div>
-                                        <div className="text-sm text-gray-600 mb-1">Stops</div>
-                                        {trip.stops.map((stop, index) => (
-                                            <div key={index} className="ml-4 mb-2">
-                                                <div className="font-medium">{index + 1}. {stop.name}</div>
-                                                <div className="text-sm text-gray-600">{stop.address}</div>
+                                    <div className="ml-1 border-l-2 border-gray-300 pl-3 py-1 space-y-1">
+                                        {trip.stops.map((stop, idx) => (
+                                            <div key={idx} className="flex items-start gap-2">
+                                                <div className="w-2 h-2 bg-amber-500 rounded-full mt-1.5"></div>
+                                                <div className="flex-1">
+                                                    <div className="text-gray-600 text-xs">Stop {idx + 1}</div>
+                                                    <div className="font-medium text-gray-900">{stop.name}</div>
+                                                    <div className="text-xs text-gray-500">{stop.address}</div>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
                                 )}
-
+                                <div className="flex items-start gap-2">
+                                    <div className="w-2 h-2 bg-red-500 rounded-full mt-1.5"></div>
+                                    <div className="flex-1">
+                                        <div className="text-gray-600 text-xs">To</div>
+                                        <div className="font-medium text-gray-900">{trip.endDestination?.name || 'N/A'}</div>
+                                        <div className="text-xs text-gray-500">{trip.endDestination?.address}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-blue-200 mt-3">
                                 <div>
-                                    <div className="text-sm text-gray-600 mb-1">End</div>
-                                    <div className="font-medium">{trip.endDestination.name}</div>
-                                    <div className="text-sm text-gray-600">{trip.endDestination.address}</div>
+                                    <div className="text-gray-600 text-xs">Distance</div>
+                                    <div className="font-semibold text-gray-900">
+                                        {trip.distance?.toFixed(2) || '0.00'} km
+                                        {trip.isTwoWay && <span className="text-xs text-gray-500 ml-1">(2-way)</span>}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-gray-600 text-xs">Est. Duration</div>
+                                    <div className="font-semibold text-gray-900">
+                                        {formatDuration(trip.duration)}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Trip Statistics */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <div className="text-sm text-gray-600 mb-1">Distance</div>
-                                <div className="text-xl font-bold text-gray-900">{trip.distance.toFixed(2)} km</div>
+                        {/* Timing */}
+                        <div className="bg-purple-50 rounded-lg p-4 space-y-2 text-sm">
+                            <h4 className="font-semibold text-gray-900 mb-2">Schedule</h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <div className="text-gray-600 text-xs">Start Date & Time</div>
+                                    <div className="font-medium text-gray-900">
+                                        {formatDate(trip.startDateTime)}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-gray-600 text-xs">End Date & Time</div>
+                                    <div className="font-medium text-gray-900">
+                                        {formatDate(trip.endDateTime)}
+                                    </div>
+                                </div>
                             </div>
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <div className="text-sm text-gray-600 mb-1">Duration</div>
-                                <div className="text-xl font-bold text-gray-900">{Math.round(trip.duration)} min</div>
-                            </div>
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <div className="text-sm text-gray-600 mb-1">Amount</div>
-                                <div className="text-xl font-bold text-green-600">₹{trip.amount.toLocaleString()}</div>
+                        </div>
+
+                        {/* Pricing Details */}
+                        <div className="bg-green-50 rounded-lg p-4 space-y-2 text-sm">
+                            <h4 className="font-semibold text-gray-900 mb-2">Pricing Details</h4>
+                            <div className="space-y-2">
+                                {trip.amountPerKm > 0 && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">
+                                            Distance Charges ({trip.distance?.toFixed(2) || '0.00'} km × ₹{trip.amountPerKm}/km)
+                                        </span>
+                                        <span className="font-medium text-gray-900">
+                                            ₹{((trip.distance || 0) * trip.amountPerKm).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                )}
+                                {trip.vehicleRent > 0 && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">Vehicle Rent</span>
+                                        <span className="font-medium text-gray-900">
+                                            ₹{trip.vehicleRent.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center border-t border-green-200 pt-2 mt-2">
+                                    <span className="font-semibold text-gray-900">Total Amount</span>
+                                    <span className="font-bold text-green-600 text-lg">
+                                        ₹{(trip.amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
