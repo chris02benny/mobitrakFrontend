@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Settings, LogOut } from 'lucide-react';
-import NotificationBell from '../common/NotificationBell';
 
 const Header = ({ onLogout }) => {
     const [showDropdown, setShowDropdown] = useState(false);
@@ -77,16 +76,6 @@ const Header = ({ onLogout }) => {
 
     const { title, subtitle } = getHeaderContent();
 
-    const handleProfileClick = () => {
-        const userRole = localStorage.getItem('userRole');
-        let settingsPath = '/';
-        if (userRole === 'admin') settingsPath = '/admin/settings';
-        else if (userRole === 'fleetmanager') settingsPath = '/business/settings';
-        else if (userRole === 'driver') settingsPath = '/driver/settings';
-        navigate(settingsPath);
-        setShowDropdown(false);
-    };
-
     return (
         <header className="h-[72px] border-b border-gray-200 bg-white flex items-center justify-between px-8 flex-shrink-0">
             <div>
@@ -95,9 +84,6 @@ const Header = ({ onLogout }) => {
             </div>
 
             <div className="flex items-center gap-6">
-                {/* Notification Bell */}
-                <NotificationBell />
-
                 {/* Settings Dropdown */}
                 <div className="relative" ref={dropdownRef}>
                     <button
@@ -109,13 +95,6 @@ const Header = ({ onLogout }) => {
 
                     {showDropdown && (
                         <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                            <button
-                                onClick={handleProfileClick}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                            >
-                                Profile
-                            </button>
-                            <div className="border-t border-gray-200 my-1"></div>
                             <button
                                 onClick={() => {
                                     setShowDropdown(false);
