@@ -198,7 +198,7 @@ async function postTelemetry(payload) {
         }
 
         // RESOLVE fleetManagerId if missing
-        let fleetManagerId = payload.fleetManagerId;
+        let fleetManagerId = payload.fleetManagerId || payload.companyId || payload.businessId;
         if (!fleetManagerId) {
             console.log('[monitoring] ⏳ fleetManagerId missing, resolving from API...');
             fleetManagerId = await resolveFleetManagerId(payload.driverId);
@@ -208,10 +208,13 @@ async function postTelemetry(payload) {
                 return;
             }
             
-            // Update payload with resolved fleetManagerId
-            payload.fleetManagerId = fleetManagerId;
             console.log('[monitoring] ✅ fleetManagerId resolved:', fleetManagerId);
         }
+        
+        // Ensure ALL field name variants are set so both REST and socket handlers find it
+        payload.fleetManagerId = fleetManagerId;
+        payload.companyId = fleetManagerId;
+        payload.businessId = fleetManagerId;
         
         // 🚀 LOG AS REQUESTED: Sending telemetry with full payload details
         console.log('🚀 Sending telemetry:', {
@@ -280,6 +283,7 @@ const DriverMonitoring = () => {
     const cameraRef = useRef(null);   // MediaPipe Camera helper
     const socketRef = useRef(null);   // Socket.IO connection
     const rtcPeerRef = useRef(null);  // WebRTC peer for escalation
+    const resolvedBusinessIdRef = useRef(null); // Cached fleet manager/business ID
 
     const earHistoryRef = useRef([]);           // sliding window of EAR values
     const lastFrameTimeRef = useRef(0);            // timestamp throttle
@@ -303,6 +307,39 @@ const DriverMonitoring = () => {
         perclosThreshold: 0.15,
         // Optional override: intercept alert changes if necessary, but the hook handles the core.
     });
+
+    // ── Eagerly resolve businessId on mount ────────────────────────────────────
+    // This must happen BEFORE any telemetry is sent, so the socket and REST
+    // paths always have a valid businessId/companyId.
+    useEffect(() => {
+        const user = getUser();
+        const driverId = user?._id || user?.id;
+        if (!driverId) return;
+
+        // Check if already cached globally
+        if (cachedFleetManagerId) {
+            resolvedBusinessIdRef.current = cachedFleetManagerId;
+            console.log('[monitoring] Using cached businessId:', cachedFleetManagerId);
+            return;
+        }
+
+        // Check localStorage user object
+        if (user.fleetManagerId) {
+            resolvedBusinessIdRef.current = user.fleetManagerId;
+            console.log('[monitoring] BusinessId from user:', user.fleetManagerId);
+            return;
+        }
+
+        // Resolve from employment API
+        resolveFleetManagerId(driverId).then(id => {
+            if (id) {
+                resolvedBusinessIdRef.current = id;
+                console.log('[monitoring] ✅ BusinessId resolved from API:', id);
+            } else {
+                console.warn('[monitoring] ⚠️ Could not resolve businessId — telemetry will use REST fallback');
+            }
+        });
+    }, []);
 
     // ── Socket.IO Connection (for incident:report) ─────────────────────────────
     useEffect(() => {
@@ -537,9 +574,15 @@ const DriverMonitoring = () => {
         if (statusChanged || intervalElapsed) {
             const user = getUser();
             const driverId = user._id || user.id;
+            // Use eagerly-resolved businessId (falls back to user.fleetManagerId)
+            const businessId = resolvedBusinessIdRef.current || user.fleetManagerId || cachedFleetManagerId;
+
             const telemetryPayload = {
                 driverId,
-                fleetManagerId: user.fleetManagerId,
+                fleetManagerId: businessId,
+                // Send BOTH field names so REST handler and socket handler both work
+                companyId: businessId,
+                businessId: businessId,
                 status: currentStatus,
                 perclos: parseFloat(currentPerclos.toFixed(4)),
                 ear: parseFloat(meanEAR.toFixed(4)),
@@ -549,15 +592,15 @@ const DriverMonitoring = () => {
             };
 
             // 1. Emit via Socket.IO incident:report (primary path)
-            if (socketRef.current?.connected) {
+            if (socketRef.current?.connected && businessId) {
                 socketRef.current.emit('incident:report', {
                     ...telemetryPayload,
-                    businessId: telemetryPayload.fleetManagerId,
                     driverName: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Driver',
                 });
             }
 
             // 2. POST to REST API (fallback + MongoDB persistence)
+            // postTelemetry has its own resolveFleetManagerId fallback
             postTelemetry(telemetryPayload)
                 .catch(err => console.error('[monitoring] Uncaught postTelemetry error:', err));
 
