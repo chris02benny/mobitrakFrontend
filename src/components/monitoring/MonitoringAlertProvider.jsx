@@ -38,12 +38,41 @@ export const useMonitoringContext = () => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getUserFromStorage = () => {
-    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+    try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            const u = JSON.parse(storedUser);
+            if (u && (u._id || u.id)) return u;
+        }
+
+        // Fallback: Extract from JWT token
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            const decoded = JSON.parse(atob(token.split('.')[1]));
+            // JWT structure: { user: { id, role, ... }, iat, exp }
+            if (decoded.user) {
+                return {
+                    ...decoded.user,
+                    _id: decoded.user.id || decoded.user._id,
+                };
+            }
+            // Some JWTs might have the user data flat
+            return {
+                ...decoded,
+                _id: decoded.id || decoded._id || decoded.userId || decoded.sub
+            };
+        }
+        return {};
+    } catch (err) {
+        console.error('[MonitoringProvider] getUserFromStorage error:', err);
+        return {};
+    }
 };
 
 const formatDriverId = (id) => {
     if (!id) return 'Unknown';
-    return typeof id === 'string' ? `${id.slice(0, 6)}…${id.slice(-4)}` : String(id).slice(0, 10);
+    const idStr = String(id);
+    return idStr.length > 10 ? `${idStr.slice(0, 6)}…${idStr.slice(-4)}` : idStr;
 };
 
 // Severity config for visual styling

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { MoreHorizontal, UserCheck, UserX, User, Bell, MapPin, Edit, Trash2 } from 'lucide-react';
+import { MoreHorizontal, UserCheck, UserX, User, Bell, MapPin, Edit, Trash2, ShieldAlert, Zap, AlertTriangle, Info } from 'lucide-react';
 import { hiringService } from '../../services/hiringService';
 import { tripService } from '../../services/tripService';
 import NotificationService from '../../services/notificationService';
+import { useMonitoringContext } from '../monitoring/MonitoringAlertProvider';
 
 const AlertItem = ({ color, title, description, time, icon: Icon }) => {
     return (
@@ -29,6 +30,7 @@ const AlertItem = ({ color, title, description, time, icon: Icon }) => {
 };
 
 const RecentAlerts = () => {
+    const { incidents } = useMonitoringContext() || { incidents: [] };
     const [hireAlerts, setHireAlerts] = useState([]);
     const [tripAlerts, setTripAlerts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -148,13 +150,35 @@ const RecentAlerts = () => {
         return `${diffDays}d ago`;
     };
 
+    // Convert incidents to alerts
+    const incidentAlerts = (incidents || []).map(inc => {
+        let icon = ShieldAlert;
+        let color = '#ef4444'; // red
+
+        if (inc.severity === 'EMERGENCY') { icon = Zap; color = '#dc2626'; }
+        else if (inc.severity === 'CRITICAL') { icon = ShieldAlert; color = '#ea580c'; }
+        else if (inc.severity === 'WARNING') { icon = AlertTriangle; color = '#d97706'; }
+        else { icon = Info; color = '#2563eb'; }
+
+        return {
+            id: inc._id,
+            type: 'incident',
+            title: `${inc.severity} Incident: ${inc.type?.replace('_', ' ')}`,
+            description: `Driver: ${inc.driverName || formatDriverId(inc.driverId)}`,
+            time: formatTimeAgo(inc.createdAt),
+            color: color,
+            icon: icon
+        };
+    });
+
     // Combine all alerts and sort by time
-    const allAlerts = [...tripAlerts, ...hireAlerts]
+    const allAlerts = [...tripAlerts, ...hireAlerts, ...incidentAlerts]
         .sort((a, b) => {
             // Parse time strings to compare (newest first)
             const getMinutes = (timeStr) => {
                 if (timeStr === 'Just now') return 0;
                 const num = parseInt(timeStr);
+                if (!num) return 9999;
                 if (timeStr.includes('m')) return num;
                 if (timeStr.includes('h')) return num * 60;
                 if (timeStr.includes('d')) return num * 1440;
@@ -162,7 +186,13 @@ const RecentAlerts = () => {
             };
             return getMinutes(a.time) - getMinutes(b.time);
         })
-        .slice(0, 6);
+        .slice(0, 8); // Show slightly more now that we have incidents
+
+    function formatDriverId(id) {
+        if (!id) return 'Unknown';
+        const idStr = String(id);
+        return idStr.length > 10 ? `${idStr.slice(0, 4)}…${idStr.slice(-4)}` : idStr;
+    }
 
     return (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col h-full">
