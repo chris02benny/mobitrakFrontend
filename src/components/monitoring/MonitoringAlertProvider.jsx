@@ -397,6 +397,27 @@ const MonitoringAlertProvider = ({ children }) => {
     }
 
     // ── Mark driver as offline if no update in >30s ──────────────────────────
+    // ── Polling Fallback (when socket is not ready) ───────────────────────────
+    useEffect(() => {
+        // Only poll if we are a fleet manager and socket is not yet ready or failed
+        if (!isFleetManager || socketReady) return;
+
+        const u = getUserFromStorage();
+        const companyId = u?.id || u?._id;
+        if (!companyId) return;
+
+        console.log('[MonitoringProvider] Socket not ready, starting polling fallback...');
+        
+        const pollInterval = setInterval(() => {
+            fetchAlerts(companyId);
+            fetchIncidents(companyId);
+            fetchIncidentStats(companyId);
+        }, 10000); // Poll every 10 seconds when socket is down
+
+        return () => clearInterval(pollInterval);
+    }, [isFleetManager, socketReady, fetchAlerts, fetchIncidents, fetchIncidentStats]);
+
+    // ── Offline/Inactivity detection ─────────────────────────────────────────
     useEffect(() => {
         const interval = setInterval(() => {
             const now = Date.now();
@@ -405,7 +426,7 @@ const MonitoringAlertProvider = ({ children }) => {
                 let changed = false;
                 Object.keys(next).forEach(id => {
                     const lastSeen = next[id].lastSeen ? new Date(next[id].lastSeen).getTime() : 0;
-                    if (now - lastSeen > 30_000 && next[id].status !== 'OFFLINE') {
+                    if (now - lastSeen > 45_000 && next[id].status !== 'OFFLINE') {
                         next[id] = { ...next[id], status: 'OFFLINE' };
                         changed = true;
                     }
