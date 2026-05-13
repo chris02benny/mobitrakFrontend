@@ -22,6 +22,7 @@ import DriversPage from './pages/business/DriversPage';
 import MaintenancePage from './pages/business/MaintenancePage';
 import FleetLeavesPage from './pages/business/FleetLeavesPage';
 import BusinessSettingsPage from './pages/business/SettingsPage';
+import IncidentCenterPage from './pages/business/IncidentCenterPage';
 
 // Driver Pages
 import DriverDashboard from './pages/driver/DriverDashboard';
@@ -70,6 +71,7 @@ function App() {
             <Route path="/business/drivers" element={<DriversPage />} />
             <Route path="/business/maintenance" element={<MaintenancePage />} />
             <Route path="/business/leaves" element={<FleetLeavesPage />} />
+            <Route path="/business/incidents" element={<IncidentCenterPage />} />
             <Route path="/business/settings" element={<BusinessSettingsPage />} />
 
             {/* Driver Routes */}

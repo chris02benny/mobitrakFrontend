@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Truck, Map, Users, Wrench, BarChart2, Settings, LogOut, User, Route, Car, Briefcase, Building2, ShieldCheck, UserPlus, Navigation, Calendar } from 'lucide-react';
+import { LayoutDashboard, Truck, Map, Users, Wrench, BarChart2, Settings, LogOut, User, Route, Car, Briefcase, Building2, ShieldCheck, UserPlus, Navigation, Calendar, Shield, Eye } from 'lucide-react';
 import axios from 'axios';
 import { apiConfig } from '../../config/apiConfig.js';
 
@@ -55,6 +55,8 @@ const Sidebar = ({ onLogout }) => {
                 { id: 'trips', label: 'Trips', icon: <Navigation size={20} />, path: '/business/trips' },
                 { id: 'hire', label: 'Hire Drivers', icon: <UserPlus size={20} />, path: '/business/hire' },
                 { id: 'drivers', label: 'My Drivers', icon: <Users size={20} />, path: '/business/drivers' },
+                { id: 'incidents', label: 'Incident Center', icon: <Shield size={20} />, path: '/business/incidents' },
+                { id: 'monitoring', label: 'Live Monitoring', icon: <Eye size={20} />, path: '/business/monitoring' },
                 { id: 'maintenance', label: 'Maintenance', icon: <Wrench size={20} />, path: '/business/maintenance' },
                 { id: 'leaves', label: 'Leaves', icon: <Calendar size={20} />, path: '/business/leaves' },
             ];

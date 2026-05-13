@@ -2,14 +2,15 @@
  * MonitoringAlertProvider.jsx
  *
  * Global context that:
- *  1. Polls the /api/alerts endpoint for fleet managers every 3 seconds.
- *  2. Fetches alerts for the logged-in fleet manager.
- *  3. Fires a react-hot-toast alert on ANY page when a DROWSY event arrives.
- *  4. Exposes `useMonitoringContext()` so the LiveMonitoringDashboard can reuse
- *     the polling state + driverStatuses without creating a second connection.
+ *  1. Connects to Socket.IO for real-time alerts and incidents.
+ *  2. Fetches initial alert history from REST API for fleet managers.
+ *  3. Fires react-hot-toast alerts on ANY page when a DROWSY/CRITICAL event arrives.
+ *  4. Manages the incident list (real-time updates via incident:new / incident:status_update).
+ *  5. Exposes `useMonitoringContext()` so the LiveMonitoringDashboard and
+ *     IncidentCenter can reuse the shared state.
  *
- * NOTE: Polls REST API instead of Pusher. Backend stores alerts in MongoDB.
- * The "since" parameter enables incremental polling to avoid re-processing old alerts.
+ * REFACTORED: Now supports the event-driven incident management pipeline
+ * alongside the existing telemetry polling/socket flow.
  */
 
 import React, {
@@ -18,6 +19,7 @@ import React, {
     useEffect,
     useRef,
     useState,
+    useCallback,
 } from 'react';
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
@@ -44,34 +46,43 @@ const formatDriverId = (id) => {
     return typeof id === 'string' ? `${id.slice(0, 6)}…${id.slice(-4)}` : String(id).slice(0, 10);
 };
 
+// Severity config for visual styling
+const SEVERITY_CONFIG = {
+    EMERGENCY: { color: '#dc2626', emoji: '🚨', label: 'EMERGENCY' },
+    CRITICAL: { color: '#ea580c', emoji: '⚠️', label: 'CRITICAL' },
+    WARNING: { color: '#d97706', emoji: '⚡', label: 'WARNING' },
+    INFO: { color: '#2563eb', emoji: 'ℹ️', label: 'INFO' },
+};
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 const MonitoringAlertProvider = ({ children }) => {
     const lastTimestampRef = useRef(null);
-    const pollIntervalRef = useRef(null);
+    const socketRef = useRef(null);
 
-    /** Map of driverId → latest telemetry { status, perclos, ear, timestamp, lastSeen } */
+    /** Map of driverId → latest telemetry */
     const [driverStatuses, setDriverStatuses] = useState({});
-    const [socketReady, setSocketReady] = useState(true); // Always "ready" for polling
+    const [socketReady, setSocketReady] = useState(false);
 
-    // Only poll for fleet-manager role
+    /** Incident management state */
+    const [incidents, setIncidents] = useState([]);
+    const [incidentStats, setIncidentStats] = useState({
+        active: 0,
+        acknowledged: 0,
+        resolvedToday: 0,
+        criticalActive: 0,
+    });
+
+    // Only active for fleet-manager role
     const user = getUserFromStorage();
     const isFleetManager =
         user?.role === 'fleetmanager' ||
         localStorage.getItem('userRole') === 'fleetmanager';
 
-    // ── Fetch alerts from API (polling) ────────────────────────────────────────
-    // Fleet manager polls using their own user ID as companyId — this matches
-    // the companyId stored in the employments collection, so only alerts from
-    // hired drivers are returned.
-    const fetchAlerts = async (companyId) => {
+    // ── Fetch alerts from API (initial load) ────────────────────────────────
+    const fetchAlerts = useCallback(async (companyId) => {
         try {
-            const params = new URLSearchParams({
-                companyId,
-                limit: '50'
-            });
-
-            // Only fetch since last timestamp (incremental polling)
+            const params = new URLSearchParams({ companyId, limit: '50' });
             if (lastTimestampRef.current) {
                 params.append('since', lastTimestampRef.current);
             }
@@ -79,40 +90,73 @@ const MonitoringAlertProvider = ({ children }) => {
             const url = `${apiConfig.baseUrl}/api/alerts?${params.toString()}`;
             const response = await fetch(url, {
                 method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
             });
 
-            if (!response.ok) {
-                console.warn('[MonitoringProvider] Failed to fetch alerts:', response.status);
-                return;
-            }
+            if (!response.ok) return;
 
             const alerts = await response.json();
-            if (!Array.isArray(alerts)) {
-                console.error('[MonitoringProvider] Invalid alerts response:', alerts);
-                return;
-            }
+            if (!Array.isArray(alerts) || alerts.length === 0) return;
 
-            if (alerts.length === 0) {
-                return; // No new alerts — silent
-            }
+            console.log('[MonitoringProvider] Fetched', alerts.length, 'alerts');
 
-            console.log('[MonitoringProvider] Fetched', alerts.length, 'new alerts');
-
-            // Update cursor to latest timestamp for next poll
             if (alerts.length > 0) {
                 lastTimestampRef.current = alerts[0].timestamp;
             }
 
-            // Process each alert in order (oldest first)
             const reversedAlerts = [...alerts].reverse();
-            reversedAlerts.forEach(alert => {
-                handleMonitoringData(alert);
-            });
+            reversedAlerts.forEach(alert => handleMonitoringData(alert));
         } catch (err) {
             console.error('[MonitoringProvider] Polling error:', err.message);
         }
-    };
+    }, []);
+
+    // ── Fetch incidents from API (initial load) ─────────────────────────────
+    const fetchIncidents = useCallback(async (companyId) => {
+        try {
+            const url = `${apiConfig.baseUrl}/api/incidents?businessId=${companyId}&status=ACTIVE,ACKNOWLEDGED,MONITORING,ESCALATED&limit=50`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': localStorage.getItem('authToken'),
+                },
+            });
+
+            if (!response.ok) return;
+
+            const data = await response.json();
+            if (data.success && Array.isArray(data.data)) {
+                setIncidents(data.data);
+                console.log('[MonitoringProvider] Loaded', data.data.length, 'active incidents');
+            }
+        } catch (err) {
+            console.error('[MonitoringProvider] Incident fetch error:', err.message);
+        }
+    }, []);
+
+    // ── Fetch incident stats ────────────────────────────────────────────────
+    const fetchIncidentStats = useCallback(async (companyId) => {
+        try {
+            const url = `${apiConfig.baseUrl}/api/incidents/stats?businessId=${companyId}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': localStorage.getItem('authToken'),
+                },
+            });
+
+            if (!response.ok) return;
+
+            const data = await response.json();
+            if (data.success) {
+                setIncidentStats(data.data);
+            }
+        } catch (err) {
+            console.error('[MonitoringProvider] Stats fetch error:', err.message);
+        }
+    }, []);
 
     // ── Setup Real-time Connection (Socket.IO) ────────────────────────────────
     useEffect(() => {
@@ -126,37 +170,126 @@ const MonitoringAlertProvider = ({ children }) => {
             return;
         }
 
-        // 1. Initial fetch to get recent history
-        console.log('[MonitoringProvider] Performing initial alert fetch for:', companyId);
+        // 1. Initial data fetch
+        console.log('[MonitoringProvider] Initial data load for:', companyId);
         fetchAlerts(companyId);
+        fetchIncidents(companyId);
+        fetchIncidentStats(companyId);
 
-        // 2. Establish Socket.IO connection for real-time updates
-        // We use the base URL from apiConfig. The trip-service handles /socket.io
+        // 2. Establish Socket.IO connection
         const socketUrl = apiConfig.baseUrl;
         console.log('[MonitoringProvider] Connecting to Socket.IO:', socketUrl);
 
         const socket = io(socketUrl, {
             transports: ['websocket', 'polling'],
             withCredentials: true,
-            reconnectionAttempts: 5,
+            reconnectionAttempts: 10,
             reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
         });
+
+        socketRef.current = socket;
 
         socket.on('connect', () => {
             console.log('[MonitoringProvider] Socket connected. ID:', socket.id);
             setSocketReady(true);
-            
-            // Join the fleet manager's private room to receive alerts for their drivers
             socket.emit('join-fleet-room', companyId);
             console.log(`[MonitoringProvider] Joined room: fleet-${companyId}`);
         });
 
-        // Listen for new alerts emitted by the backend
+        // ── Telemetry Events (existing) ─────────────────────────────────────
         socket.on('new-alert', (alert) => {
-            console.log('[MonitoringProvider] Received real-time alert:', alert);
             handleMonitoringData(alert);
         });
 
+        // ── Incident Events (new) ───────────────────────────────────────────
+        socket.on('incident:new', (incident) => {
+            console.log('[MonitoringProvider] New incident:', incident);
+            setIncidents(prev => [incident, ...prev]);
+
+            // Update stats
+            setIncidentStats(prev => ({
+                ...prev,
+                active: prev.active + 1,
+                criticalActive: ['CRITICAL', 'EMERGENCY'].includes(incident.severity)
+                    ? prev.criticalActive + 1
+                    : prev.criticalActive,
+            }));
+
+            // Show toast for CRITICAL/EMERGENCY incidents
+            const config = SEVERITY_CONFIG[incident.severity] || SEVERITY_CONFIG.WARNING;
+            if (['CRITICAL', 'EMERGENCY'].includes(incident.severity)) {
+                toast.error(
+                    (t) => (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <strong style={{ fontSize: '0.95rem' }}>
+                                {config.emoji} {config.label} Incident
+                            </strong>
+                            <span style={{ fontSize: '0.85rem' }}>
+                                <strong>{incident.driverName || formatDriverId(incident.driverId)}</strong>
+                                {' '} — {incident.type?.replace('_', ' ')}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                                PERCLOS: {((incident.metrics?.perclos || 0) * 100).toFixed(1)}%
+                            </span>
+                        </div>
+                    ),
+                    {
+                        duration: 15000,
+                        id: `incident-${incident._id}`,
+                        style: {
+                            background: config.color,
+                            color: '#fff',
+                            maxWidth: 400,
+                        },
+                    }
+                );
+            }
+        });
+
+        socket.on('incident:status_update', (update) => {
+            console.log('[MonitoringProvider] Incident status update:', update);
+            setIncidents(prev =>
+                prev.map(inc =>
+                    inc._id === update.incidentId
+                        ? { ...inc, status: update.status || inc.status, liveSessionActive: update.liveSessionActive ?? inc.liveSessionActive }
+                        : inc
+                ).filter(inc => inc.status !== 'RESOLVED')
+            );
+
+            // Refresh stats on status change
+            fetchIncidentStats(companyId);
+        });
+
+        socket.on('incident:auto_escalation', (data) => {
+            console.log('[MonitoringProvider] Auto-escalation:', data);
+            toast.error(
+                (t) => (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <strong style={{ fontSize: '0.95rem' }}>
+                            🚨 Auto-Escalation Alert
+                        </strong>
+                        <span style={{ fontSize: '0.85rem' }}>
+                            {data.message}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                            Live monitoring recommended for this driver.
+                        </span>
+                    </div>
+                ),
+                {
+                    duration: 20000,
+                    id: `escalation-${data.incidentId}`,
+                    style: {
+                        background: '#7c2d12',
+                        color: '#fff',
+                        maxWidth: 420,
+                    },
+                }
+            );
+        });
+
+        // ── Connection Events ───────────────────────────────────────────────
         socket.on('connect_error', (err) => {
             console.warn('[MonitoringProvider] Socket connection error:', err.message);
             setSocketReady(false);
@@ -167,15 +300,25 @@ const MonitoringAlertProvider = ({ children }) => {
             setSocketReady(false);
         });
 
+        socket.on('reconnect', () => {
+            console.log('[MonitoringProvider] Socket reconnected');
+            setSocketReady(true);
+            socket.emit('join-fleet-room', companyId);
+            // Refresh data on reconnect
+            fetchIncidents(companyId);
+            fetchIncidentStats(companyId);
+        });
+
         return () => {
             console.log('[MonitoringProvider] Cleaning up socket connection');
             socket.disconnect();
+            socketRef.current = null;
         };
-    }, [isFleetManager]);
+    }, [isFleetManager, fetchAlerts, fetchIncidents, fetchIncidentStats]);
 
     // ── Handle incoming monitoring data ───────────────────────────────────────
     function handleMonitoringData(alert) {
-        const { driverId, status, perclos, ear, timestamp } = alert;
+        const { driverId, status, perclos, ear, timestamp, monitoringActive } = alert;
         if (!driverId) return;
 
         setDriverStatuses(prev => ({
@@ -186,6 +329,7 @@ const MonitoringAlertProvider = ({ children }) => {
                 status,
                 perclos: perclos ?? 0,
                 ear: ear ?? 0,
+                monitoringActive: monitoringActive ?? prev[driverId]?.monitoringActive,
                 timestamp: timestamp || new Date().toISOString(),
                 lastSeen: new Date(),
             },
@@ -223,7 +367,7 @@ const MonitoringAlertProvider = ({ children }) => {
         }
     }
 
-    // ── Mark driver as offline if no update in >30 s ──────────────────────────
+    // ── Mark driver as offline if no update in >30s ──────────────────────────
     useEffect(() => {
         const interval = setInterval(() => {
             const now = Date.now();
@@ -244,9 +388,26 @@ const MonitoringAlertProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, []);
 
+    // ── Remove resolved incidents helper ─────────────────────────────────────
+    const removeResolvedIncident = useCallback((incidentId) => {
+        setIncidents(prev => prev.filter(inc => inc._id !== incidentId));
+    }, []);
+
     const value = {
         socketReady,
+        socketRef,
         driverStatuses,
+        incidents,
+        incidentStats,
+        removeResolvedIncident,
+        refreshIncidents: () => {
+            const u = getUserFromStorage();
+            const companyId = u?.id || u?._id;
+            if (companyId) {
+                fetchIncidents(companyId);
+                fetchIncidentStats(companyId);
+            }
+        },
     };
 
     return (

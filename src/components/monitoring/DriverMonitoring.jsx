@@ -6,7 +6,9 @@
  *  - Camera access via getUserMedia
  *  - MediaPipe FaceMesh (loaded from CDN) for facial landmark detection
  *  - EAR + PERCLOS computation using drowsinessUtils
- *  - MongoDB-backed alerts via REST API POST to /api/realtime/driver-monitoring
+ *  - Event-driven incident reporting via Socket.IO (incident:report)
+ *  - MongoDB-backed alerts via REST API POST (fallback)
+ *  - WebRTC escalation responder (starts camera stream on manager request)
  *  - Throttled frame processing (~10 fps)
  */
 
@@ -16,6 +18,7 @@ import React, {
     useEffect,
     useCallback,
 } from 'react';
+import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import {
     computeMeanEAR,
@@ -275,6 +278,8 @@ const DriverMonitoring = () => {
     const streamRef = useRef(null);   // MediaStream from camera
     const faceMeshRef = useRef(null);   // MediaPipe FaceMesh instance
     const cameraRef = useRef(null);   // MediaPipe Camera helper
+    const socketRef = useRef(null);   // Socket.IO connection
+    const rtcPeerRef = useRef(null);  // WebRTC peer for escalation
 
     const earHistoryRef = useRef([]);           // sliding window of EAR values
     const lastFrameTimeRef = useRef(0);            // timestamp throttle
@@ -291,12 +296,156 @@ const DriverMonitoring = () => {
     const [status, setStatus] = useState('ALERT');
     const [ear, setEar] = useState(0);
     const [perclos, setPerclos] = useState(0);
+    const [isEscalated, setIsEscalated] = useState(false); // WebRTC escalation active
     
     const { processFrame, enableAudioSystem, stopAudioSystem } = useDrowsinessAlert({
         earThreshold: 0.25, // Using a slightly forgiving threshold for earlier alerts
         perclosThreshold: 0.15,
         // Optional override: intercept alert changes if necessary, but the hook handles the core.
     });
+
+    // ── Socket.IO Connection (for incident:report) ─────────────────────────────
+    useEffect(() => {
+        const user = getUser();
+        const driverId = user?._id || user?.id;
+        if (!driverId) return;
+
+        const socket = io(API_BASE_URL, {
+            transports: ['websocket', 'polling'],
+            withCredentials: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 2000,
+        });
+
+        socket.on('connect', () => {
+            console.log('[monitoring] Socket connected:', socket.id);
+            socket.emit('join-monitoring-room', driverId);
+        });
+
+        // ── WebRTC Escalation: Manager requests live video ─────────────────
+        socket.on('webrtc:start', async (data) => {
+            console.log('[monitoring] WebRTC escalation request received:', data);
+            setIsEscalated(true);
+            toast('🎥 Fleet manager is requesting live video feed.', {
+                duration: 5000,
+                icon: '📡',
+            });
+
+            try {
+                // Use existing stream if monitoring is active, else get new one
+                let stream = streamRef.current;
+                if (!stream) {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: 640, height: 480, facingMode: 'user' },
+                        audio: false,
+                    });
+                }
+
+                const pc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                    ],
+                });
+
+                rtcPeerRef.current = pc;
+
+                // Add video tracks to the peer connection
+                stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit('webrtc:ice-candidate', {
+                            candidate: event.candidate,
+                            targetSocketId: data.adminSocketId,
+                        });
+                    }
+                };
+
+                pc.onconnectionstatechange = () => {
+                    console.log('[monitoring] WebRTC state:', pc.connectionState);
+                    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                        setIsEscalated(false);
+                    }
+                };
+
+                // Create and send offer
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                socket.emit('webrtc:offer', {
+                    offer,
+                    targetSocketId: data.adminSocketId,
+                    sessionId: data.sessionId,
+                    driverSocketId: socket.id,
+                    sourceSocketId: socket.id,
+                });
+
+                console.log('[monitoring] WebRTC offer sent to manager');
+            } catch (err) {
+                console.error('[monitoring] WebRTC escalation error:', err);
+                setIsEscalated(false);
+            }
+        });
+
+        // Handle WebRTC answer from manager
+        socket.on('webrtc:answer', async (data) => {
+            try {
+                if (rtcPeerRef.current && data.answer) {
+                    await rtcPeerRef.current.setRemoteDescription(
+                        new RTCSessionDescription(data.answer)
+                    );
+                    console.log('[monitoring] WebRTC answer applied');
+                }
+            } catch (err) {
+                console.error('[monitoring] WebRTC answer error:', err);
+            }
+        });
+
+        // Handle ICE candidates from manager
+        socket.on('webrtc:ice-candidate', async (data) => {
+            try {
+                if (rtcPeerRef.current && data.candidate) {
+                    await rtcPeerRef.current.addIceCandidate(
+                        new RTCIceCandidate(data.candidate)
+                    );
+                }
+            } catch (err) {
+                console.warn('[monitoring] ICE candidate error:', err.message);
+            }
+        });
+
+        // Handle session end
+        socket.on('webrtc:ended', () => {
+            console.log('[monitoring] WebRTC session ended by manager');
+            if (rtcPeerRef.current) {
+                rtcPeerRef.current.close();
+                rtcPeerRef.current = null;
+            }
+            setIsEscalated(false);
+            toast('Live monitoring session ended.', { icon: '📴' });
+        });
+
+        // Also handle legacy webrtc-start event
+        socket.on('webrtc-start', (data) => {
+            socket.emit('webrtc:start', data); // redirect to new handler
+        });
+
+        socket.on('disconnect', () => {
+            console.log('[monitoring] Socket disconnected');
+        });
+
+        socketRef.current = socket;
+
+        return () => {
+            if (rtcPeerRef.current) {
+                rtcPeerRef.current.close();
+                rtcPeerRef.current = null;
+            }
+            socket.disconnect();
+            socketRef.current = null;
+        };
+    }, []);
 
     // ── Helper: Brightness Check ──────────────────────────────────────────────
     const checkBrightness = useCallback(() => {
@@ -387,10 +536,9 @@ const DriverMonitoring = () => {
 
         if (statusChanged || intervalElapsed) {
             const user = getUser();
-
-            // POST to backend → MongoDB stores alert (async, fire-and-forget)
-            postTelemetry({
-                driverId: user._id || user.id,
+            const driverId = user._id || user.id;
+            const telemetryPayload = {
+                driverId,
                 fleetManagerId: user.fleetManagerId,
                 status: currentStatus,
                 perclos: parseFloat(currentPerclos.toFixed(4)),
@@ -398,7 +546,20 @@ const DriverMonitoring = () => {
                 monitoringActive: true,
                 source: 'frame-analysis',
                 timestamp: new Date().toISOString(),
-            }).catch(err => console.error('[monitoring] Uncaught postTelemetry error:', err));
+            };
+
+            // 1. Emit via Socket.IO incident:report (primary path)
+            if (socketRef.current?.connected) {
+                socketRef.current.emit('incident:report', {
+                    ...telemetryPayload,
+                    businessId: telemetryPayload.fleetManagerId,
+                    driverName: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Driver',
+                });
+            }
+
+            // 2. POST to REST API (fallback + MongoDB persistence)
+            postTelemetry(telemetryPayload)
+                .catch(err => console.error('[monitoring] Uncaught postTelemetry error:', err));
 
             lastEmitTimeRef.current = now;
             lastStatusRef.current = currentStatus;
@@ -563,14 +724,24 @@ const DriverMonitoring = () => {
     const isNoFace = status === 'NO_FACE';
     const earPct = Math.min(ear / 0.4, 1);
     const perclosPct = Math.min(perclos / 1, 1);
+    const socketConnected = socketRef.current?.connected;
 
     return (
         <div className="flex flex-col gap-6 max-w-4xl mx-auto">
             {/* ── Header ── */}
-            <div className="flex items-center justify-end">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <span className="w-2 h-2 rounded-full bg-green-500" />
-                    Telemetrics Active
+            <div className="flex items-center justify-between">
+                {/* Escalation indicator */}
+                {isEscalated && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 border border-purple-200 rounded-full">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                        <span className="text-xs font-medium text-purple-700">Live Monitoring Active</span>
+                    </div>
+                )}
+                <div className="flex items-center gap-3 text-sm text-gray-500 ml-auto">
+                    <div className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-green-500' : 'bg-amber-400'}`} />
+                        <span className="text-xs">{socketConnected ? 'Live' : 'Buffered'}</span>
+                    </div>
                 </div>
             </div>
 
