@@ -19,6 +19,7 @@ import React, {
     useRef,
     useState,
 } from 'react';
+import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { apiConfig } from '../../config/apiConfig';
 
@@ -113,12 +114,11 @@ const MonitoringAlertProvider = ({ children }) => {
         }
     };
 
-    // ── Setup polling when component mounts ────────────────────────────────────
+    // ── Setup Real-time Connection (Socket.IO) ────────────────────────────────
     useEffect(() => {
         if (!isFleetManager) return;
 
         const u = getUserFromStorage();
-        // The fleet manager's user _id IS the companyId in the employment records
         const companyId = u?.id || u?._id;
 
         if (!companyId) {
@@ -126,21 +126,50 @@ const MonitoringAlertProvider = ({ children }) => {
             return;
         }
 
-        console.log('[MonitoringProvider] Starting alert polling for companyId:', companyId);
-
-        // Initial fetch
+        // 1. Initial fetch to get recent history
+        console.log('[MonitoringProvider] Performing initial alert fetch for:', companyId);
         fetchAlerts(companyId);
 
-        // Poll every 3 seconds
-        pollIntervalRef.current = setInterval(() => {
-            fetchAlerts(companyId);
-        }, 3000);
+        // 2. Establish Socket.IO connection for real-time updates
+        // We use the base URL from apiConfig. The trip-service handles /socket.io
+        const socketUrl = apiConfig.baseUrl;
+        console.log('[MonitoringProvider] Connecting to Socket.IO:', socketUrl);
+
+        const socket = io(socketUrl, {
+            transports: ['websocket', 'polling'],
+            withCredentials: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+        });
+
+        socket.on('connect', () => {
+            console.log('[MonitoringProvider] Socket connected. ID:', socket.id);
+            setSocketReady(true);
+            
+            // Join the fleet manager's private room to receive alerts for their drivers
+            socket.emit('join-fleet-room', companyId);
+            console.log(`[MonitoringProvider] Joined room: fleet-${companyId}`);
+        });
+
+        // Listen for new alerts emitted by the backend
+        socket.on('new-alert', (alert) => {
+            console.log('[MonitoringProvider] Received real-time alert:', alert);
+            handleMonitoringData(alert);
+        });
+
+        socket.on('connect_error', (err) => {
+            console.warn('[MonitoringProvider] Socket connection error:', err.message);
+            setSocketReady(false);
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('[MonitoringProvider] Socket disconnected:', reason);
+            setSocketReady(false);
+        });
 
         return () => {
-            if (pollIntervalRef.current) {
-                clearInterval(pollIntervalRef.current);
-                pollIntervalRef.current = null;
-            }
+            console.log('[MonitoringProvider] Cleaning up socket connection');
+            socket.disconnect();
         };
     }, [isFleetManager]);
 
