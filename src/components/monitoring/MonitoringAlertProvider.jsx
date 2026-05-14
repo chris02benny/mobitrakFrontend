@@ -258,6 +258,8 @@ const MonitoringAlertProvider = ({ children }) => {
             reconnectionAttempts: 10,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
+            timeout: 20000,
+            autoConnect: true
         });
 
         socketRef.current = socket;
