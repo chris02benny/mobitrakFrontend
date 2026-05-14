@@ -24,6 +24,7 @@ import React, {
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { apiConfig } from '../../config/apiConfig';
+import { hiringService } from '../../services/hiringService';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -93,6 +94,9 @@ const MonitoringAlertProvider = ({ children }) => {
     const [driverStatuses, setDriverStatuses] = useState({});
     const [socketReady, setSocketReady] = useState(false);
 
+    /** Map of driverId → driver name */
+    const [hiredDrivers, setHiredDrivers] = useState({});
+
     /** Incident management state */
     const [incidents, setIncidents] = useState([]);
     const [incidentStats, setIncidentStats] = useState({
@@ -109,7 +113,7 @@ const MonitoringAlertProvider = ({ children }) => {
         localStorage.getItem('userRole') === 'fleetmanager';
 
     // ── Fetch alerts from API (initial load) ────────────────────────────────
-    const fetchAlerts = useCallback(async (companyId) => {
+    const fetchAlerts = useCallback(async (companyId, options = { isInitialLoad: false }) => {
         try {
             const params = new URLSearchParams({ companyId, limit: '50' });
             if (lastTimestampRef.current) {
@@ -117,12 +121,21 @@ const MonitoringAlertProvider = ({ children }) => {
             }
 
             const url = `${apiConfig.baseUrl}/api/alerts?${params.toString()}`;
+            const token = localStorage.getItem('authToken');
+            
             const response = await fetch(url, {
                 method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token,
+                    'Authorization': `Bearer ${token}`
+                },
             });
 
-            if (!response.ok) return;
+            if (!response.ok) {
+                console.warn('[MonitoringProvider] Fetch alerts failed:', response.status);
+                return;
+            }
 
             const alerts = await response.json();
             if (!Array.isArray(alerts) || alerts.length === 0) return;
@@ -133,8 +146,9 @@ const MonitoringAlertProvider = ({ children }) => {
                 lastTimestampRef.current = alerts[0].timestamp;
             }
 
+            // During initial load, we don't want to trigger toasts for old alerts
             const reversedAlerts = [...alerts].reverse();
-            reversedAlerts.forEach(alert => handleMonitoringData(alert));
+            reversedAlerts.forEach(alert => handleMonitoringData(alert, options));
         } catch (err) {
             console.error('[MonitoringProvider] Polling error:', err.message);
         }
@@ -144,15 +158,21 @@ const MonitoringAlertProvider = ({ children }) => {
     const fetchIncidents = useCallback(async (companyId) => {
         try {
             const url = `${apiConfig.baseUrl}/api/incidents?businessId=${companyId}&status=ACTIVE,ACKNOWLEDGED,MONITORING,ESCALATED&limit=50`;
+            const token = localStorage.getItem('authToken');
+            
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-auth-token': localStorage.getItem('authToken'),
+                    'x-auth-token': token,
+                    'Authorization': `Bearer ${token}`
                 },
             });
 
-            if (!response.ok) return;
+            if (!response.ok) {
+                console.warn('[MonitoringProvider] Fetch incidents failed:', response.status);
+                return;
+            }
 
             const data = await response.json();
             if (data.success && Array.isArray(data.data)) {
@@ -168,15 +188,21 @@ const MonitoringAlertProvider = ({ children }) => {
     const fetchIncidentStats = useCallback(async (companyId) => {
         try {
             const url = `${apiConfig.baseUrl}/api/incidents/stats?businessId=${companyId}`;
+            const token = localStorage.getItem('authToken');
+            
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-auth-token': localStorage.getItem('authToken'),
+                    'x-auth-token': token,
+                    'Authorization': `Bearer ${token}`
                 },
             });
 
-            if (!response.ok) return;
+            if (!response.ok) {
+                console.warn('[MonitoringProvider] Fetch stats failed:', response.status);
+                return;
+            }
 
             const data = await response.json();
             if (data.success) {
@@ -201,9 +227,26 @@ const MonitoringAlertProvider = ({ children }) => {
 
         // 1. Initial data fetch
         console.log('[MonitoringProvider] Initial data load for:', companyId);
-        fetchAlerts(companyId);
-        fetchIncidents(companyId);
-        fetchIncidentStats(companyId);
+        
+        // Fetch hired drivers first to populate names
+        hiringService.getCompanyEmployees('ACTIVE', 1, 100)
+            .then(data => {
+                if (data.success && Array.isArray(data.data)) {
+                    const map = {};
+                    data.data.forEach(emp => {
+                        if (emp.driverId) {
+                            map[emp.driverId] = emp.driverName || emp.driver?.name || 'Driver';
+                        }
+                    });
+                    setHiredDrivers(map);
+                }
+            })
+            .catch(err => console.error('[MonitoringProvider] Failed to fetch drivers:', err))
+            .finally(() => {
+                fetchAlerts(companyId, { isInitialLoad: true });
+                fetchIncidents(companyId);
+                fetchIncidentStats(companyId);
+            });
 
         // 2. Establish Socket.IO connection
         const socketUrl = apiConfig.baseUrl;
@@ -346,7 +389,7 @@ const MonitoringAlertProvider = ({ children }) => {
     }, [isFleetManager, fetchAlerts, fetchIncidents, fetchIncidentStats]);
 
     // ── Handle incoming monitoring data ───────────────────────────────────────
-    function handleMonitoringData(alert) {
+    function handleMonitoringData(alert, options = { isInitialLoad: false }) {
         const { driverId, status, perclos, ear, timestamp, monitoringActive } = alert;
         if (!driverId) return;
 
@@ -366,7 +409,18 @@ const MonitoringAlertProvider = ({ children }) => {
 
         // Global alert toast for DROWSY — shown on ANY page
         if (status === 'DROWSY') {
-            const name = formatDriverId(driverId);
+            // SKIP TOAST if it's initial load of old data OR alert is too old
+            if (options.isInitialLoad) return;
+            
+            const alertTime = new Date(timestamp || Date.now()).getTime();
+            const now = Date.now();
+            // Don't toast for alerts older than 45 seconds (fallback polling might get old ones)
+            if (now - alertTime > 45000) {
+                console.log('[MonitoringProvider] Skipping toast for old drowsiness alert:', driverId);
+                return;
+            }
+
+            const name = hiredDrivers[driverId] || formatDriverId(driverId);
             const perclosPct = ((perclos || 0) * 100).toFixed(1);
 
             toast.error(
@@ -409,7 +463,7 @@ const MonitoringAlertProvider = ({ children }) => {
         console.log('[MonitoringProvider] Socket not ready, starting polling fallback...');
         
         const pollInterval = setInterval(() => {
-            fetchAlerts(companyId);
+            fetchAlerts(companyId, { isPolling: true });
             fetchIncidents(companyId);
             fetchIncidentStats(companyId);
         }, 10000); // Poll every 10 seconds when socket is down
